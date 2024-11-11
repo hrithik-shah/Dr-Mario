@@ -16,7 +16,7 @@
 ADDR_DSPL:
     .word 0x10008000
 INNER_BOTTLE:
-    .space 1632             # stores the grid inside the bottle
+    .word 0:408             # stores the grid inside the bottle
 CAPSULE:
     .word 0x100081ac:2      # stores the left/top position of capsule first
 COLOR_CAPSULE:
@@ -25,10 +25,6 @@ NEXT_CAPSULE:
     .word 0x100083e8        # stores the position of the next capsule
 NEXT_CAPSULE_COLOR:
     .space 8                # stores the colors of the next capsule (top then bottom)
-VIRUS_POSITIONS:
-    .space 32               # stores the position of the viruses
-VIRUS_COLORS:
-    .space 32               # stores the color of the viruses
 ADDR_KBRD:
     .word 0xffff0000
 CENTR_BTTL:
@@ -43,11 +39,11 @@ main:
 jal initialize_capsule
 jal create_next_capsule
 jal initialize_viruses
+jal draw_border
+jal draw_next_capsule
 
-game_loop:      jal reset_screen
-                jal draw_border
-                jal draw_viruses
-                jal draw_next_capsule
+game_loop:      jal draw_inner_screen
+                jal clear_bottle_opening
                 jal draw_capsule
                 
                 jal sleep
@@ -99,46 +95,44 @@ initialize_viruses:     addi $sp, $sp, -4                   # save $ra
                         jal generate_random_virus_position  # generate random virus positions
                         jal generate_random_virus_position  # generate random virus positions
                         
-                        la $t0, VIRUS_POSITIONS             # $t0 = address of array for virus positions
+                        lw $s0, 0($sp)                      # $s0 = position offset of virus 0  
+                        addi $sp, $sp, 4                                   
                         
-                        lw $t1, 0($sp)                      # $t1 = position of virus 0
-                        addi $sp, $sp, 4            
-                        sw $t1, 0($t0)                      # save virus 0 position in memory
+                        lw $s1, 0($sp)                      # $s1 = position offset of virus 1
+                        addi $sp, $sp, 4                        
                         
-                        lw $t1, 0($sp)                      # $t1 = position of virus 1
-                        addi $sp, $sp, 4            
-                        sw $t1, 4($t0)                      # save virus 1 position in memory
+                        lw $s2, 0($sp)                      # $s2 = position offset of virus 2 
+                        addi $sp, $sp, 4                        
                         
-                        lw $t1, 0($sp)                      # $t1 = position of virus 2
-                        addi $sp, $sp, 4            
-                        sw $t1, 8($t0)                      # save virus 2 position in memory
-                        
-                        lw $t1, 0($sp)                      # $t1 = position of virus 3
-                        addi $sp, $sp, 4            
-                        sw $t1, 12($t0)                     # save virus 3 position in memory
+                        lw $s3, 0($sp)                      # $s3 = position offset of virus 3
+                        addi $sp, $sp, 4                   
                         
                         jal random_color                    # generate random virus color
                         jal random_color                    # generate random virus color                    
                         jal random_color                    # generate random virus color
                         jal random_color                    # generate random virus color
                         
-                        la $t0, VIRUS_COLORS                # $t0 = address of array for virus colors
+                        la $t0, INNER_BOTTLE                # $t0 = bottle grid pointer
                         
                         lw $t1, 0($sp)                      # $t1 = color of virus 0
                         addi $sp, $sp, 4            
-                        sw $t1, 0($t0)                      # save virus 0 color in memory
+                        add $s0, $s0, $t0                   # $s0 = position of virus 0
+                        sw $t1, 0($s0)                      # save virus 0 color in memory
                         
                         lw $t1, 0($sp)                      # $t1 = color of virus 1
                         addi $sp, $sp, 4            
-                        sw $t1, 4($t0)                      # save virus 1 color in memory
+                        add $s1, $s1, $t0                   # $s1 = position of virus 1
+                        sw $t1, 0($s1)                      # save virus 1 color in memory
                         
                         lw $t1, 0($sp)                      # $t1 = color of virus 2
                         addi $sp, $sp, 4            
-                        sw $t1, 8($t0)                      # save virus 2 color in memory
+                        add $s2, $s2, $t0                   # $s2 = position of virus 2
+                        sw $t1, 0($s2)                      # save virus 2 color in memory
                         
                         lw $t1, 0($sp)                      # $t1 = color of virus 3
                         addi $sp, $sp, 4            
-                        sw $t1, 12($t0)                     # save virus 3 color in memory
+                        add $s3, $s3, $t0                   # $s3 = position of virus 3
+                        sw $t1, 0($s3)                      # save virus 3 color in memory
                         
                         lw $ra, 0($sp)                      # restore $ra
                         addi $sp, $sp, 4                    #       from the stack
@@ -163,7 +157,12 @@ create_next_capsule:    addi $sp, $sp, -4           # put $ra onto stack
                         
                         jr $ra 
                         
-generate_random_virus_position:     li $v0, 42              # 42 is system call code to generate random int
+generate_random_virus_position:     addi $sp, $sp, -4
+                                    sw $s0, 0($sp)          # save $s0 on stack
+                                    addi $sp, $sp, -4
+                                    sw $s1, 0($sp)          # save $s1 on stack
+                                    
+                                    li $v0, 42              # 42 is system call code to generate random int
                                     li $a0, 0               # $a0 is the lower bound
                                     li $a1, 17              # $a1 is the upper bound
                                     syscall                 # your generated number will be at $a0
@@ -173,15 +172,18 @@ generate_random_virus_position:     li $v0, 42              # 42 is system call 
                                     li $a0, 0               # $a0 is the lower bound
                                     li $a1, 19              # $a1 is the upper bound
                                     syscall                 # your generated number will be at $a0
-                                    sll $s1, $a0, 7         
-                                    addi $s1, $s1, 640      # $s0 = random y offset
+                                    li $t0, 68              # $t0 = number of cols
+                                    mult $a0, $t0
+                                    mflo $s1       
+                                    addi $s1, $s1, 340       # $s0 = random y offset
                                     
-                                    lw $t0, TOP_LEFT_BOTTLE # $t0 = top left internal corner of bottle
-                                    add $t0, $t0, $s0       # $t0 += x offset
-                                    add $t0, $t0, $s1       # $t0 += y offset
+                                    add $t0, $s0, $s1       # $t0 = overall offset
                                     
-                                    addi $sp, $sp, -4       # save return
-                                    sw $t0, 0($sp)          #       value on stack
+                                    lw $s1, 0($sp)          # restore $s1 from stack
+                                    addi $sp, $sp, 4
+                                    lw $s0, 0($sp)          # restore $s0 from stack
+                                    
+                                    sw $t0, 0($sp)          # save return value on stack
 
                                     jr $ra
                         
@@ -189,6 +191,47 @@ generate_random_virus_position:     li $v0, 42              # 42 is system call 
                         
                         
 ################################## Drawers ###################################
+
+clear_bottle_opening:   li $t0, 0               # $t0 = black
+                        lw $t1, CENTR_BTTL      # $t1 = center of bottle opening
+                        
+                        # first row
+                        sw $t0, -4($t1)
+                        sw $t0, 0($t1)
+                        sw $t0, 4($t1)
+                        
+                        # middle row
+                        sw $t0, 124($t1)
+                        sw $t0, 128($t1)
+                        sw $t0, 132($t1)
+                        
+                        # last row
+                        sw $t0, 252($t1)
+                        sw $t0, 256($t1)
+                        sw $t0, 260($t1)
+                        
+                        jr $ra
+
+draw_inner_screen:      la $t0, INNER_BOTTLE                    # $t0 = inner screen pointer
+                        lw $t1, TOP_LEFT_BOTTLE                 # $t1 = display pointer at top left bottle
+                        
+                        addi $t2, $t0, 1632                     # $t2 = inner screen end value
+draw_inner_screen_loop: beq $t0, $t2, end_draw_inner_screen     # if screen is draw, leave
+                        
+                        addi $t3, $t0, 68                       # $t3 = row end value
+inner_row_loop:         beq $t0, $t3, post_inner_row_loop       # if row is done, go to outer loop
+                        
+                        lw $t4, 0($t0)                          # $t4 = pixel to be drawn
+                        sw $t4, 0($t1)                          # paint pixel onto screen
+                        
+                        addi $t0, $t0, 4                        # move inner bottle pointer to next position
+                        addi $t1, $t1, 4                        # move screen pointer to next position
+                        j inner_row_loop
+                        
+post_inner_row_loop:    addi $t1, $t1, 60                       # set pointer to start of next row
+                        j draw_inner_screen_loop
+                        
+end_draw_inner_screen:  jr $ra
     
 reset_screen:       lw $t0, ADDR_DSPL       # $t0 = start position
     
@@ -251,27 +294,6 @@ draw_border:        lw $t0, ADDR_DSPL                   # $t0 = base address for
                         sw $t2, 4($t3)
                         sw $t2, 8($t3)
                     
-                    jr $ra
-                    
-draw_viruses:       la $t0, VIRUS_POSITIONS     # $t0 = array pointer for virus positions
-                    la $t1, VIRUS_COLORS        # $t1 = array pointer for virus colors
-                    
-                    lw $t2, 0($t0)              # $t2 = position of virus 0
-                    lw $t3, 0($t1)              # $t3 = color of virus 0
-                    sw $t3, 0($t2)              # draw virus 0
-                    
-                    lw $t2, 4($t0)              # $t2 = position of virus 1
-                    lw $t3, 4($t1)              # $t3 = color of virus 1
-                    sw $t3, 0($t2)              # draw virus 1
-                    
-                    lw $t2, 8($t0)              # $t2 = position of virus 2
-                    lw $t3, 8($t1)              # $t3 = color of virus 2
-                    sw $t3, 0($t2)              # draw virus 2
-                    
-                    lw $t2, 12($t0)             # $t2 = position of virus 3
-                    lw $t3, 12($t1)             # $t3 = color of virus 3
-                    sw $t3, 0($t2)              # draw virus 3
-
                     jr $ra
     
 draw_capsule:       la $t0, CAPSULE             # $t0 = array of address of capsule position
