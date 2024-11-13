@@ -29,6 +29,10 @@ ADDR_KBRD:
     .word 0xffff0000
 CENTR_BTTL:
     .word 0x100081ac
+INITIAL_CAPSULE_POSITION:
+    .word 0x1000832c
+INNER_BOTTLE_INITIAL_CAPSULE_POSITION:
+    .space 4
 TOP_LEFT_BOTTLE:
     .word 0x1000830c
 RED:
@@ -49,6 +53,7 @@ LIGHT_BLUE:
 	
 main:
 jal initialize_capsule
+jal initialize_inner_bottle
 jal create_next_capsule
 jal initialize_viruses
 jal draw_border
@@ -64,11 +69,13 @@ game_loop:      jal draw_next_capsule
                 lw $t8, 0($t0)                          # Load first word from keyboard
                 beq $t8, 1, handle_keyboard_input       # If first word 1, key is pressed
                 
-                jal handle_capsule_bottom_collision
+                jal handle_capsule_bottom_collision     # checks if the current capsule has hit something
                 lw $t0, 0($sp)                          # $t0 = return value (updated) from handle_capsule_bottom_collision
                 
                 sw $t0, 0($sp)                          # set argument for update_inner_bottle_state
-                jal update_inner_bottle_state
+                jal update_inner_bottle_state           # checks for 4 or more blocks, deletes, does gravity, and repeats
+                
+                jal check_game_over                     # checks if game over, and handles it
                 
                 b game_loop
 
@@ -81,99 +88,107 @@ exit:
 ############################ Memory Initializers #############################
 
 
-initialize_capsule:     addi $sp, $sp, -4           # put $ra onto stack
-                        sw $ra, 0($sp)
-                        jal random_color
-                        lw $t4, 0($sp)              # pop return value from stack
-                        addi $sp, $sp, 4
-                        jal random_color
-                        lw $t5, 0($sp)              # pop return value from stack
-                        addi $sp, $sp, 4
+initialize_capsule:         addi $sp, $sp, -4                           # put $ra onto stack
+                            sw $ra, 0($sp)
+                            jal random_color
+                            lw $t4, 0($sp)                              # pop return value from stack
+                            addi $sp, $sp, 4
+                            jal random_color
+                            lw $t5, 0($sp)                              # pop return value from stack
+                            addi $sp, $sp, 4
+                            
+                            lw $ra, 0($sp)                              # restore return address
+                            addi $sp, $sp, 4
+                            
+                            lw $t3, INITIAL_CAPSULE_POSITION            # $t3 = position of bottle opening
+                            
+                            la $t7, CAPSULE                             # $t7 = location to store position of capsule
+                            la $t8, COLOR_CAPSULE                       # $t8 = location to colors of capsule
+                            sw $t3, 0($t7)                              # save top capsule position in memory
+                            sw $t4, 0($t8)                              # save top capsule color in memory
+                            addi $t3, $t3, 128
+                            sw $t3, 4($t7)                              # save bottom capsule position in memory
+                            sw $t5, 4($t8)                              # save bottom capsule color in memory
+                            
+                            jr $ra
                         
-                        lw $ra, 0($sp)              # restore return address
-                        addi $sp, $sp, 4
+initialize_inner_bottle:    # save the initial capsule position on inner bottle
+                            la $t0, INNER_BOTTLE
+                            addi $t0, $t0, 32
+                            la $t1, INNER_BOTTLE_INITIAL_CAPSULE_POSITION
+                            sw $t0, 0($t1)
+                            
+                            jr $ra
                         
-                        lw $t3, CENTR_BTTL          # $t3 = position of bottle opening
+initialize_viruses:         addi $sp, $sp, -4                   # save $ra 
+                            sw $ra, 0($sp)                      #       on the stack
+                            
+                            jal generate_random_virus_position  # generate random virus positions
+                            jal generate_random_virus_position  # generate random virus positions
+                            jal generate_random_virus_position  # generate random virus positions
+                            jal generate_random_virus_position  # generate random virus positions
+                            
+                            lw $s0, 0($sp)                      # $s0 = position offset of virus 0  
+                            addi $sp, $sp, 4                                   
+                            
+                            lw $s1, 0($sp)                      # $s1 = position offset of virus 1
+                            addi $sp, $sp, 4                        
+                            
+                            lw $s2, 0($sp)                      # $s2 = position offset of virus 2 
+                            addi $sp, $sp, 4                        
+                            
+                            lw $s3, 0($sp)                      # $s3 = position offset of virus 3
+                            addi $sp, $sp, 4                   
+                            
+                            jal random_virus_color              # generate random virus color
+                            jal random_virus_color              # generate random virus color
+                            jal random_virus_color              # generate random virus color
+                            jal random_virus_color              # generate random virus color
+                            
+                            la $t0, INNER_BOTTLE                # $t0 = bottle grid pointer
+                            
+                            lw $t1, 0($sp)                      # $t1 = color of virus 0
+                            addi $sp, $sp, 4            
+                            add $s0, $s0, $t0                   # $s0 = position of virus 0
+                            sw $t1, 0($s0)                      # save virus 0 color in memory
+                            
+                            lw $t1, 0($sp)                      # $t1 = color of virus 1
+                            addi $sp, $sp, 4            
+                            add $s1, $s1, $t0                   # $s1 = position of virus 1
+                            sw $t1, 0($s1)                      # save virus 1 color in memory
+                            
+                            lw $t1, 0($sp)                      # $t1 = color of virus 2
+                            addi $sp, $sp, 4            
+                            add $s2, $s2, $t0                   # $s2 = position of virus 2
+                            sw $t1, 0($s2)                      # save virus 2 color in memory
+                            
+                            lw $t1, 0($sp)                      # $t1 = color of virus 3
+                            addi $sp, $sp, 4            
+                            add $s3, $s3, $t0                   # $s3 = position of virus 3
+                            sw $t1, 0($s3)                      # save virus 3 color in memory
+                            
+                            lw $ra, 0($sp)                      # restore $ra
+                            addi $sp, $sp, 4                    #       from the stack
+                            
+                            jr $ra
                         
-                        la $t7, CAPSULE             # $t7 = location to store position of capsule
-                        la $t8, COLOR_CAPSULE       # $t8 = location to colors of capsule
-                        sw $t3, 0($t7)              # save top capsule position in memory
-                        sw $t4, 0($t8)              # save top capsule color in memory
-                        addi $t3, $t3, 128
-                        sw $t3, 4($t7)              # save bottom capsule position in memory
-                        sw $t5, 4($t8)              # save bottom capsule color in memory
-                        
-                        jr $ra
-                        
-initialize_viruses:     addi $sp, $sp, -4                   # save $ra 
-                        sw $ra, 0($sp)                      #       on the stack
-                        
-                        jal generate_random_virus_position  # generate random virus positions
-                        jal generate_random_virus_position  # generate random virus positions
-                        jal generate_random_virus_position  # generate random virus positions
-                        jal generate_random_virus_position  # generate random virus positions
-                        
-                        lw $s0, 0($sp)                      # $s0 = position offset of virus 0  
-                        addi $sp, $sp, 4                                   
-                        
-                        lw $s1, 0($sp)                      # $s1 = position offset of virus 1
-                        addi $sp, $sp, 4                        
-                        
-                        lw $s2, 0($sp)                      # $s2 = position offset of virus 2 
-                        addi $sp, $sp, 4                        
-                        
-                        lw $s3, 0($sp)                      # $s3 = position offset of virus 3
-                        addi $sp, $sp, 4                   
-                        
-                        jal random_virus_color              # generate random virus color
-                        jal random_virus_color              # generate random virus color
-                        jal random_virus_color              # generate random virus color
-                        jal random_virus_color              # generate random virus color
-                        
-                        la $t0, INNER_BOTTLE                # $t0 = bottle grid pointer
-                        
-                        lw $t1, 0($sp)                      # $t1 = color of virus 0
-                        addi $sp, $sp, 4            
-                        add $s0, $s0, $t0                   # $s0 = position of virus 0
-                        sw $t1, 0($s0)                      # save virus 0 color in memory
-                        
-                        lw $t1, 0($sp)                      # $t1 = color of virus 1
-                        addi $sp, $sp, 4            
-                        add $s1, $s1, $t0                   # $s1 = position of virus 1
-                        sw $t1, 0($s1)                      # save virus 1 color in memory
-                        
-                        lw $t1, 0($sp)                      # $t1 = color of virus 2
-                        addi $sp, $sp, 4            
-                        add $s2, $s2, $t0                   # $s2 = position of virus 2
-                        sw $t1, 0($s2)                      # save virus 2 color in memory
-                        
-                        lw $t1, 0($sp)                      # $t1 = color of virus 3
-                        addi $sp, $sp, 4            
-                        add $s3, $s3, $t0                   # $s3 = position of virus 3
-                        sw $t1, 0($s3)                      # save virus 3 color in memory
-                        
-                        lw $ra, 0($sp)                      # restore $ra
-                        addi $sp, $sp, 4                    #       from the stack
-                        
-                        jr $ra
-                        
-create_next_capsule:    addi $sp, $sp, -4           # put $ra onto stack
-                        sw $ra, 0($sp)
-                        jal random_color
-                        lw $t4, 0($sp)              # pop return value from stack
-                        addi $sp, $sp, 4
-                        jal random_color
-                        lw $t5, 0($sp)              # pop return value from stack
-                        addi $sp, $sp, 4
-                        
-                        lw $ra, 0($sp)              # restore return address
-                        addi $sp, $sp, 4
-                        
-                        la $t8, NEXT_CAPSULE_COLOR  # $t8 = location to colors of capsule
-                        sw $t4, 0($t8)              # save top capsule color in memory
-                        sw $t5, 4($t8)              # save bottom capsule color in memory
-                        
-                        jr $ra 
+create_next_capsule:        addi $sp, $sp, -4           # put $ra onto stack
+                            sw $ra, 0($sp)
+                            jal random_color
+                            lw $t4, 0($sp)              # pop return value from stack
+                            addi $sp, $sp, 4
+                            jal random_color
+                            lw $t5, 0($sp)              # pop return value from stack
+                            addi $sp, $sp, 4
+                            
+                            lw $ra, 0($sp)              # restore return address
+                            addi $sp, $sp, 4
+                            
+                            la $t8, NEXT_CAPSULE_COLOR  # $t8 = location to colors of capsule
+                            sw $t4, 0($t8)              # save top capsule color in memory
+                            sw $t5, 4($t8)              # save bottom capsule color in memory
+                            
+                            jr $ra 
                         
 generate_random_virus_position:     addi $sp, $sp, -4
                                     sw $s0, 0($sp)          # save $s0 on stack
@@ -599,7 +614,7 @@ collision:                              li $t0, 1
                                         # set new capsule
                                         la $t0, CAPSULE                             # $t0 = capsule position pointer
                                         la $t1, COLOR_CAPSULE                       # $t1 = capsule color pointer
-                                        lw $t2, CENTR_BTTL                          # $t2 = next capsule position pointer
+                                        lw $t2, INITIAL_CAPSULE_POSITION            # $t2 = next capsule position pointer
                                         la $t3, NEXT_CAPSULE_COLOR                  # $t3 = next capsule color pointer
                                         
                                         sw $t2, 0($t0)                              # save new top capsule position on memory
@@ -903,3 +918,26 @@ gravitify_blocks_update_display:        jal clear_bottle_opening
 gravitify_blocks_end:                   lw $ra, 0($sp)                              # restore return address from stack
                                         addi $sp, $sp, 4
                                         jr $ra
+                                        
+check_game_over:                        la $t0, INNER_BOTTLE
+                                        addi $t0, $t0, 32                           # top center of inner bottle
+                                        
+                                        lw $t1, 68($t0)                             # $t1 = color of bottom capsule
+                                        bne $t1, 0, handle_game_over                # if block in way, end game
+                                        lw $t1, 136($t0)                            # $t1 = color below new capsule
+                                        bne $t1, 0, handle_game_over                # if block below, end game
+                                        
+                                        j check_game_over_end
+                                        
+handle_game_over:                       addi $sp, $sp, -4                           
+                                        sw $ra, 0($sp)                              # save return address on stack
+                                        
+                                        jal draw_inner_screen
+                                        jal clear_bottle_opening
+                                        
+                                        lw $ra, 0($sp)                              # restore return address from stack
+                                        addi $sp, $sp, 4                           
+                                        
+                                        j exit
+                                        
+check_game_over_end:                    jr $ra
