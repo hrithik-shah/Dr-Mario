@@ -31,6 +31,18 @@ CENTR_BTTL:
     .word 0x100081ac
 TOP_LEFT_BOTTLE:
     .word 0x1000830c
+RED:
+    .word 0x00ff0000
+YELLOW:
+    .word 0x00ffff00
+BLUE:
+    .word 0x000000ff
+LIGHT_PINK:
+    .word 0x00ff80a0
+ORANGE:
+    .word 0x00ff9000
+LIGHT_BLUE:
+    .word 0x008888ff
 
     .text
 	.globl 
@@ -40,9 +52,9 @@ jal initialize_capsule
 jal create_next_capsule
 jal initialize_viruses
 jal draw_border
-jal draw_next_capsule
 
-game_loop:      jal draw_inner_screen
+game_loop:      jal draw_next_capsule
+                jal draw_inner_screen
                 jal clear_bottle_opening
                 jal draw_capsule
                 
@@ -51,8 +63,14 @@ game_loop:      jal draw_inner_screen
                 lw $t0, ADDR_KBRD                       # $t0 = base address for keyboard
                 lw $t8, 0($t0)                          # Load first word from keyboard
                 beq $t8, 1, handle_keyboard_input       # If first word 1, key is pressed
-
-end_game_loop: b game_loop
+                
+                jal handle_capsule_bottom_collision
+                lw $t0, 0($sp)                          # $t0 = return value (updated) from handle_capsule_bottom_collision
+                
+                sw $t0, 0($sp)                          # set argument for update_inner_bottle_state
+                jal update_inner_bottle_state
+                
+                b game_loop
 
 exit:
     li $v0, 10              # terminate the program gracefully
@@ -107,10 +125,10 @@ initialize_viruses:     addi $sp, $sp, -4                   # save $ra
                         lw $s3, 0($sp)                      # $s3 = position offset of virus 3
                         addi $sp, $sp, 4                   
                         
-                        jal random_color                    # generate random virus color
-                        jal random_color                    # generate random virus color                    
-                        jal random_color                    # generate random virus color
-                        jal random_color                    # generate random virus color
+                        jal random_virus_color              # generate random virus color
+                        jal random_virus_color              # generate random virus color
+                        jal random_virus_color              # generate random virus color
+                        jal random_virus_color              # generate random virus color
                         
                         la $t0, INNER_BOTTLE                # $t0 = bottle grid pointer
                         
@@ -317,9 +335,9 @@ draw_next_capsule:  lw $t0, NEXT_CAPSULE        # $t0 = next capsule top positio
                     jr $ra
     
 random_color:
-    li $t0, 0xff0000            # $t0 = red
-    li $t1, 0xffff00            # $t1 = yellow
-    li $t2, 0x0000ff            # $t2 = blue
+    lw $t0, RED                 # $t0 = red
+    lw $t1, YELLOW              # $t1 = yellow
+    lw $t2, BLUE                # $t2 = blue
     
     li $v0, 42                  # 42 is system call code to generate random int
     li $a0, 0                   # $a0 is the lower bound
@@ -338,6 +356,30 @@ random_color:
     Else1: 
         sw $t0, 0($sp)
     jr $ra
+    
+random_virus_color:         lw $t0, LIGHT_PINK                  # $t0 = light pink
+                            lw $t1, ORANGE                      # $t1 = orange
+                            lw $t2, LIGHT_BLUE                  # $t2 = desaturated blue
+    
+                            li $v0, 42                          # 42 is system call code to generate random int
+                            li $a0, 0                           # $a0 is the lower bound
+                            li $a1, 3                           # $a1 is the upper bound
+                            syscall                             # your generated number will be at $a0
+    
+                            addi $sp, $sp, -4
+                            
+                            beq $a0, 0, red_color               # if $a0 == 0, then return red color
+                            beq $a0, 1, yellow_color            # if $a0 == 1, then return yellow color
+                            
+                            # otherwise return blue color
+                            sw $t2, 0($sp)
+                            jr $ra
+
+red_color:                  sw $t0, 0($sp)
+                            jr $ra
+                        
+yellow_color:               sw $t1, 0($sp)
+                            jr $ra
 
 ##############################################################################
                         
@@ -345,7 +387,7 @@ random_color:
 ############################## Event Handlers ################################
 
 sleep:      li $v0, 32      # $v0 = system call for sleeping
-            li $a0, 66      # $a0 = time (in milliseconds) to sleep
+            li $a0, 67      # $a0 = time (in milliseconds) to sleep
             syscall         # sleep
             jr $ra
 
@@ -371,7 +413,7 @@ a_key_press:        la $t0, CAPSULE                 # $t0 = capsule position poi
                     lw $t3, 4($t0)                  # $t3 = bottom/right position
                     
                     subu $t4, $t3, $t2
-                    a_key_branch_vertical: bne $t4, 128, a_key_branch_horizontal       # if capsule is verticle
+                    a_key_branch_vertical: bne $t4, 128, a_key_branch_horizontal        # if capsule is verticle
                         addi $t4, $t2, -4                                               # $t4 = position to the top left of capsule
                         addi $t5, $t3, -4                                               # $t5 = position to the bottom left of capsule
                         lw $t4, 0($t4)                                                  # $t4 = color at position to the top left of capsule
@@ -496,3 +538,368 @@ w_key_press:        la $t0, CAPSULE                 # $t0 = capsule position poi
                         sw $t2, 0($t0)              # save new top position
                         sw $t3, 4($t0)              # save new bottom position
 w_key_press_end:    j end_handle_keyboard_input
+
+handle_capsule_bottom_collision:        la $t0, CAPSULE                             # $t0 = capsule position pointer
+                                        lw $t1, 0($t0)                              # $t1 = top/left capsule position
+                                        lw $t2, 4($t0)                              # $t2 = bottom/right capsule position
+                                        
+                                        addi $sp, $sp, -4
+                                        sw $zero, 0($sp)                            # set default return value to false
+                                    
+                                        sub $t3, $t2, $t1
+                                        bne $t3, 128, horizontal_collision_test     # if not vertical, go to horizontal branch
+
+vertical_collision_test:                lw $t3, 128($t2)                            # $t3 = color of position below capsule
+                                        bne $t3, 0, collision                       # if there is no space below, handle it
+                                        
+                                        j bottom_collision_end
+                                        
+collision:                              li $t0, 1
+                                        sw $t0, 0($sp)                              # set return value to true
+
+                                        # save blocks to inner screen
+                                        lw $t0, TOP_LEFT_BOTTLE                     # $t0 = pointer to top left of bottle on display
+                                        la $t3, INNER_BOTTLE                        # $t3 = pointer of inner bottle
+                                        la $t4, COLOR_CAPSULE                       # $t4 = pointer of capsule color array
+                                        
+                                        # top/left capsule
+                                        sub $t1, $t1, $t0                           # $t1 = position of top/left capsule minus display address offset
+                                        
+                                        li $t9, 128                                 # $t9 = bytes per row for display array
+                                        divu $t1, $t9                               # divide relative position of top/left capsule by bytes per row
+                                        mfhi $a2                                    # remainder to $a2
+                                        mflo $v0                                    # quotient to $v0
+                                        
+                                        li $t9, 68                                  # $t9 = bytes per row for inner bottle array
+                                        multu $v0, $t9                               
+                                        mflo $t8                                    # $t8 = y offset
+                                        add $t1, $t8, $a2                           # $t1 = y offset + x offset
+                                        
+                                        add $t1, $t1, $t3                           # $t1 = position of top/left capsule translated to inner bottle positioning
+                                        lw $t5, 0($t4)                              # $t5 = color of top/left capsule
+                                        sw $t5, 0($t1)                              # save top/left capsule on inner bottle
+                                        
+                                        # bottom/right capsule
+                                        sub $t2, $t2, $t0                           # $t2 = position of top/left capsule minus display address offset
+                                        
+                                        li $t9, 128                                 # $t9 = bytes per row for display array
+                                        divu $t2, $t9                                # divide relative position of top/left capsule by bytes per row
+                                        mfhi $a2                                    # remainder to $a2
+                                        mflo $v0                                    # quotient to $v0
+                                        
+                                        li $t9, 68                                  # $t8 = bytes per row for inner bottle array
+                                        multu $v0, $t9                               
+                                        mflo $t8                                    # $t8 = y offset
+                                        add $t2, $t8, $a2                           # $t2 = y offset + x offset
+                                        
+                                        add $t2, $t2, $t3                           # $t2 = position of top/left capsule translated to inner bottle positioning
+                                        lw $t5, 4($t4)                              # $t5 = color of top/left capsule
+                                        sw $t5, 0($t2)                              # save top/left capsule on inner bottle
+                                        
+                                        # set new capsule
+                                        la $t0, CAPSULE                             # $t0 = capsule position pointer
+                                        la $t1, COLOR_CAPSULE                       # $t1 = capsule color pointer
+                                        lw $t2, CENTR_BTTL                          # $t2 = next capsule position pointer
+                                        la $t3, NEXT_CAPSULE_COLOR                  # $t3 = next capsule color pointer
+                                        
+                                        sw $t2, 0($t0)                              # save new top capsule position on memory
+                                        addi $t2, $t2, 128                          # $t2 = new bottom capsule position
+                                        sw $t2, 4($t0)                              # save new bottom/right capsule position on memory
+                                        
+                                        lw $t4, 0($t3)                              # $t4 = next top/left capsule color
+                                        sw $t4, 0($t1)                              # save new top/left capsule color on memory
+                                        lw $t4, 4($t3)                              # $t4 = next bottom/right capsule color
+                                        sw $t4, 4($t1)                              # save new bottom/right capsule color on memory
+                                        
+                                        addi $sp, $sp, -4
+                                        sw $ra, 0($sp)                              # save return address on stack 
+                                        
+                                        jal create_next_capsule                     # set new capsule color
+                                        
+                                        lw $ra, 0($sp)                              # restore return address from stack
+                                        addi $sp, $sp, 4
+                                        
+                                        j bottom_collision_end
+                                        
+horizontal_collision_test:              lw $t3, 128($t1)                            # $t3 = color of position below left capsule
+                                        bne $t3, 0, collision                       # if there is no space below, handle it
+                                        lw $t3, 128($t2)                            # $t3 = color of position below right capsule
+                                        bne $t3, 0, collision                       # if there is no space below, handle it
+                                        
+                                        j bottom_collision_end
+                          
+bottom_collision_end:                   jr $ra
+
+update_inner_bottle_state:              lw $s0, 0($sp)                              # $s0 = argument (updated)
+                                        sw $ra, 0($sp)                              # save return address on stack
+                                        
+                                        bne $s0, 1, update_inner_bottle_state_end   # if not updated, exit
+                                        jal draw_inner_screen                       # necessary because algorithm utilizes the display 
+                                        
+run_loop:                               move $s0, $zero                             # set updated to false by default
+                                        
+                                        li $s1, 0                                   # $s1 = current inner bottle x-coordinate
+                                        li $s2, 0                                   # $s2 = current inner bottle y-coordinate
+                
+row_loop:                               beq $s2, 24, row_loop_end                   # if we have reached the last row, exit loop
+                
+col_loop:                               beq $s1, 17, col_loop_end                  # if we have reached the last col, exit loop
+                                        
+                                        addi $sp, $sp, -4
+                                        sw $s2, 0($sp)                              # place y-coordinate on stack for check_four_or_more
+                                        addi $sp, $sp, -4
+                                        sw $s1, 0($sp)                              # place x-coordinate on stack for check_four_or_more
+                                        jal check_four_or_more
+                                        lw $t0, 0($sp)                              # $t0 = return (updated) from check_four_or_more
+                                        addi $sp, $sp, 4
+                                        
+                                        bne $t0, 1, skip_append_run_loop            # if not updated, don't set run_again
+                                        move $s0, $t0                               # make loop run again
+                                        
+                                        # jal gravitify_blocks
+                                        
+skip_append_run_loop:                   addi $s1, $s1, 1                            # increment col pointer
+                                        
+                                        j col_loop
+                                        
+col_loop_end:                           li $s1, 0                                   # reset col pointer
+                                        addi $s2, $s2, 1                            # increment row pointer
+                                        j row_loop
+                                        
+row_loop_end:                           bne $s0, 1, update_inner_bottle_state_end   # if not updated, exit
+
+                                        # draw deleted screen
+                                        jal draw_inner_screen
+                                        jal sleep
+                                        
+                                        jal gravitify_blocks
+                                        
+                                        j run_loop
+                                    
+update_inner_bottle_state_end:          lw $ra, 0($sp)                              # restore return address from stack
+                                        addi $sp, $sp, 4
+                                        jr $ra
+
+check_four_or_more:                     lw $t0, 0($sp)                              # $t0 = x-coordinate argument on stack
+                                        addi $sp, $sp, 4
+                                        lw $t1, 0($sp)                              # $t1 = y-coordinate argument on stack
+                                        sw $zero, 0($sp)                            # store return value (updated) on stack: default is 0
+                                        
+                                        lw $t2, TOP_LEFT_BOTTLE                     # $t2 = top left bottle display pointer
+                                        sll $t4, $t0, 2
+                                        sll $t5, $t1, 7
+                                        add $t4, $t4, $t5
+                                        add $t4, $t4, $t2                           # $t4 = current position on display
+                                        lw $t8, 0($t4)                              # $t5 = current color on display
+                                        bne $t8, 0, set_color                       # if not empty, check the horizontal direction
+                                        
+                                        jr $ra
+                                    
+set_color:                              lw $t2, RED
+                                        beq $t8, $t2, set_color_red                 # if red, set color to red
+                                        lw $t2, LIGHT_PINK
+                                        beq $t8, $t2, set_color_red                 # if red, set color to red
+                                        
+                                        lw $t2, YELLOW
+                                        beq $t8, $t2, set_color_yellow              # if yellow, set color to yellow
+                                        lw $t2, ORANGE
+                                        beq $t8, $t2, set_color_yellow              # if yellow, set color to yellow
+                                        
+                                        lw $t2, BLUE
+                                        beq $t8, $t2, set_color_blue                # if blue, set color to blue
+                                        lw $t2, LIGHT_BLUE
+                                        beq $t8, $t2, set_color_blue                # if blue, set color to blue
+                                        
+                                        j check_four_or_more_end                    # should not hit, but just in case
+                                        
+set_color_red:                          li $t8, 1                                   # $t8 represent red color
+                                        j horizontal_direction_start
+                                    
+set_color_yellow:                       li $t8, 2                                   # $t8 represent yellow color
+                                        j horizontal_direction_start
+                        
+set_color_blue:                         li $t8, 3                                   # $t8 represent blue color
+                                        j horizontal_direction_start
+                                        
+horizontal_direction_start:             lw $t2, TOP_LEFT_BOTTLE                     # $t2 = top left bottle display pointer
+                                        addi $t3, $t0, 1                            # $t3 = current x-coordinate
+check_horizontal_direction:             beq $t3, 17, horizontal_direction_end       # if reached last column, leave
+                                        
+                                        sll $t4, $t3, 2                             # $t4 = x position offset
+                                        sll $t5, $t1, 7                             # $t5 = y position offset
+                                        add $t4, $t4, $t5
+                                        add $t4, $t4, $t2                           # $t4 = current position on display
+                                        lw $t5, 0($t4)                              # $t5 = current color on display
+                                        
+                                        beq $t8, 1, check_red_block_horizontal      # if we are checking red, ensure it
+                                        beq $t8, 2, check_yellow_block_horizontal   # if we are checking yellow, ensure it
+                                        beq $t8, 3, check_blue_block_horizontal     # if we are checking blue, ensure it
+                                        
+check_red_block_horizontal:             lw $t6, RED
+                                        beq $t5, $t6, same_block_horizontal         # if same block, deal with it
+                                        lw $t6, LIGHT_PINK
+                                        beq $t5, $t6, same_block_horizontal         # if same block, deal with it
+                                        j horizontal_direction_end
+
+check_yellow_block_horizontal:          lw $t6, YELLOW
+                                        beq $t5, $t6, same_block_horizontal         # if same block, deal with it
+                                        lw $t6, ORANGE
+                                        beq $t5, $t6, same_block_horizontal         # if same block, deal with it
+                                        j horizontal_direction_end
+
+check_blue_block_horizontal:            lw $t6, BLUE
+                                        beq $t5, $t6, same_block_horizontal         # if same block, deal with it
+                                        lw $t6, LIGHT_BLUE
+                                        beq $t5, $t6, same_block_horizontal         # if same block, deal with it
+                                        j horizontal_direction_end
+                                        
+same_block_horizontal:                  addi $t3, $t3, 1                            # $t3 = increment x-coordinate
+                                        
+                                        j check_horizontal_direction
+                                        
+horizontal_direction_end:               sub $t4, $t3, $t0                           # $t4 = number of same blocks
+                                        blt $t4, 4, vertical_direction_start        # if not 4 or more blocks, check the vertical direction 
+                                        
+                                        li $t4, 1                                   # $t4 = 1, to set return value
+                                        sw $t4, 0($sp)                              # set return value (updated), to true
+                                
+                                        la $t2, INNER_BOTTLE                        # $t2 = inner bottle array pointer
+horizontal_delete_loop:                 beq $t3, $t0, vertical_direction_start      # if all blocks have been deleted, check vertical direction
+                                        
+                                        addi $t3, $t3, -1                           # $t3 = decrement x-coordinate
+                                        
+                                        sll $t4, $t3, 2                             # $t4 = x position offset
+                                        
+                                        li $t6, 68                                  # $t6 = bytes per row for inner bottle array
+                                        multu $t1, $t6                               
+                                        mflo $t5                                    # $t5 = y position offset
+                                        
+                                        add $t4, $t4, $t5
+                                        add $t4, $t4, $t2                           # $t4 = current position on inner bottle array
+                                        sw $zero, 0($t4)
+                                        
+                                        j horizontal_delete_loop
+                                        
+vertical_direction_start:               lw $t2, TOP_LEFT_BOTTLE                     # $t2 = top left bottle display pointer
+                                        addi $t3, $t1, 1                            # $t3 = current y-coordinate
+check_vertical_direction:               beq $t3, 24, veritcal_direction_end         # if reached last row, leave
+                                        
+                                        sll $t4, $t3, 7                             # $t4 = y position offset
+                                        sll $t5, $t0, 2                             # $t5 = x position offset
+                                        add $t4, $t4, $t5
+                                        add $t4, $t4, $t2                           # $t4 = current position on display
+                                        lw $t5, 0($t4)                              # $t5 = current color on display
+                                        
+                                        beq $t8, 1, check_red_block_vertical        # if we are checking red, ensure it
+                                        beq $t8, 2, check_yellow_block_vertical     # if we are checking yellow, ensure it
+                                        beq $t8, 3, check_blue_block_vertical       # if we are checking blue, ensure it
+                                        
+check_red_block_vertical:               lw $t6, RED
+                                        beq $t5, $t6, same_block_vertical         # if same block, deal with it
+                                        lw $t6, LIGHT_PINK
+                                        beq $t5, $t6, same_block_vertical         # if same block, deal with it
+                                        j veritcal_direction_end
+
+check_yellow_block_vertical:            lw $t6, YELLOW
+                                        beq $t5, $t6, same_block_vertical         # if same block, deal with it
+                                        lw $t6, ORANGE
+                                        beq $t5, $t6, same_block_vertical         # if same block, deal with it
+                                        j veritcal_direction_end
+
+check_blue_block_vertical:              lw $t6, BLUE
+                                        beq $t5, $t6, same_block_vertical         # if same block, deal with it
+                                        lw $t6, LIGHT_BLUE
+                                        beq $t5, $t6, same_block_vertical         # if same block, deal with it
+                                        j veritcal_direction_end
+                                        
+same_block_vertical:                    addi $t3, $t3, 1                            # $t3 = increment x-coordinate
+                                        
+                                        j check_vertical_direction
+            
+veritcal_direction_end:                 sub $t4, $t3, $t1                           # $t4 = number of same blocks
+                                        blt $t4, 4, check_four_or_more_end          # if not 4 or more blocks, exit 
+                                        
+                                        li $t4, 1                                   # $t4 = 1, to set return value
+                                        sw $t4, 0($sp)                              # set return value (updated), to true
+
+                                        la $t2, INNER_BOTTLE                        # $t2 = inner bottle array pointer
+veritcal_delete_loop:                   beq $t3, $t1, check_four_or_more_end        # if all blocks have been deleted, exit
+                                        
+                                        addi $t3, $t3, -1                           # $t3 = decrement x-coordinate
+                                        
+                                        sll $t4, $t0, 2                             # $t4 = x position offset
+                                        
+                                        li $t6, 68                                  # $t6 = bytes per row for inner bottle array
+                                        multu $t3, $t6                               
+                                        mflo $t5                                    # $t5 = y position offset
+                                        
+                                        add $t4, $t4, $t5
+                                        add $t4, $t4, $t2                           # $t4 = current position on inner bottle array
+                                        sw $zero, 0($t4)
+                                        
+                                        j veritcal_delete_loop
+
+check_four_or_more_end:                 jr $ra
+                                        
+                                        
+gravitify_blocks:                       addi $sp, $sp, -4                           
+                                        sw $ra, 0($sp)                              # save return address on stack
+                                        
+gravity_loop:                           la $t2, INNER_BOTTLE                        # $t2 = inner bottle array pointer
+                                        li $t9, 0                                   # set default updated value to false
+                                        li $t0, 16                                  # $t0 = x-coordinate
+                                        li $t1, 22                                  # $t1 = y-coordinate
+                                        
+gravity_row_loop:                       beq $t1, -1, gravity_row_loop_end           # if reached last row, handle it
+
+gravity_col_loop:                       beq $t0, -1, gravity_col_loop_end           # if reached last col, handle it
+   
+                                        sll $t3, $t0, 2                             # $t3 = x position offset
+                                        
+                                        li $t4, 68                                  # $t4 = bytes per row for inner bottle array
+                                        multu $t1, $t4                               
+                                        mflo $t4                                    # $t4 = y position offset
+                                        
+                                        add $t3, $t3, $t4
+                                        add $t3, $t3, $t2                           # $t3 = current position on inner bottle array
+                                        
+                                        lw $t4, 0($t3)                              # $t4 = color at current position
+                                        
+                                        beq $t4, $zero, skip_gravitify_block        # if empty block, skip
+                                        
+                                        lw $t5, LIGHT_PINK                          
+                                        beq $t4, $t5, skip_gravitify_block          # if virus, skip
+                                        lw $t5, ORANGE                          
+                                        beq $t4, $t5, skip_gravitify_block          # if virus, skip
+                                        lw $t5, LIGHT_BLUE                          
+                                        beq $t4, $t5, skip_gravitify_block          # if virus, skip
+                                        
+                                        lw $t5, 68($t3)                             # $t5 = color below current position
+                                        bne $t5, 0, skip_gravitify_block            # if no space to fall, skip
+                                        
+                                        # move block down
+                                        sw $t4, 68($t3)                             # move current  
+                                        sw $zero, 0($t3)                            #    pixel down
+                                        
+                                        li $t9, 1                                   # set updated to true
+                                        
+skip_gravitify_block:                   addi $t0, $t0, -1                           # decrement x-coordinate
+                                        j gravity_col_loop
+                                        
+gravity_col_loop_end:                   addi $t1, $t1, -1                           # decrement y-coordinate
+                                        li $t0, 16                                  # reset x-coordinate
+                                        j gravity_row_loop
+
+gravity_row_loop_end:                   bne $t9, 1, gravitify_blocks_end            # if not updated, exit
+                                        
+gravitify_blocks_update_display:        jal clear_bottle_opening
+                                        jal draw_inner_screen
+                                        jal draw_capsule
+                                        
+                                        jal sleep
+                                        
+                                        j gravity_loop
+                                        
+gravitify_blocks_end:                   lw $ra, 0($sp)                              # restore return address from stack
+                                        addi $sp, $sp, 4
+                                        jr $ra
