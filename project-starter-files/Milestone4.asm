@@ -64,6 +64,7 @@ jal initialize_score
 game_loop:      jal draw_next_capsule
                 jal draw_inner_screen
                 jal clear_bottle_opening
+                jal clear_score_from_display
                 jal draw_score
                 jal draw_capsule
                 
@@ -400,20 +401,55 @@ red_color:                  sw $t0, 0($sp)
 yellow_color:               sw $t1, 0($sp)
                             jr $ra
                             
+clear_score_from_display:   lw $t0, ADDR_DSPL       
+                            li $t1, 3292                            # $t1 = display address offset
+                            
+clear_score_row_loop:       beq $t1, 3932, clear_score_end          # if done with all rows, exit
+
+                            addi $t2, $t1, 28
+
+clear_score_col_loop:       beq $t1, $t2, clear_score_col_loop_end  # if reached last col, go to next row
+
+                            add $t3, $t0, $t1                       # $t3 = current address on display
+                            sw $zero, 0($t3)                        # delete pixel at $t3
+                            addi $t1, $t1, 4                        # increment display address offset
+                            
+                            j clear_score_col_loop
+
+clear_score_col_loop_end:   addi $t1, $t1, 100
+                            
+                            j clear_score_row_loop
+                            
+clear_score_end:            jr $ra
+                            
 draw_score:                 addi $sp, $sp, -4
                             sw $ra, 0($sp)                      # save return address on stack
                             
                             lw $s0, ADDR_DSPL
+                            lw $s7, SCORE                       # $s7 = current score
+                            
+                            li $s6, 10
+                            div $s7, $s6
+                            mfhi $s2                            # remainder to $s2
+                            mflo $s3                            # quotient to $s3
                             
                             addi $s1, $s0, 3292 
                             addi $sp, $sp, -4
-                            sw $s1, 0($sp)
-                            jal draw_eight
+                            sw $s1, 0($sp)                      # save address for 10's place on stack
                             
-                            addi $s1, $s0, 3308
                             addi $sp, $sp, -4
-                            sw $s1, 0($sp)
-                            jal draw_eight
+                            sw $s3, 0($sp)                      # save number to be drawn on stack
+                            
+                            jal draw_number
+                            
+                            addi $s1, $s0, 3308 
+                            addi $sp, $sp, -4
+                            sw $s1, 0($sp)                      # save address for 1's place on stack
+                            
+                            addi $sp, $sp, -4
+                            sw $s2, 0($sp)                      # save number to be drawn on stack
+                            
+                            jal draw_number
                                     
                             lw $ra, 0($sp)                      # restore return address from stack
                             addi $sp, $sp, 4
@@ -1089,6 +1125,7 @@ horizontal_direction_end:               sub $t4, $t3, $t0                       
                                         sw $t4, 0($sp)                              # set return value (updated), to true
                                 
                                         la $t2, INNER_BOTTLE                        # $t2 = inner bottle array pointer
+                                        
 horizontal_delete_loop:                 beq $t3, $t0, vertical_direction_start      # if all blocks have been deleted, check vertical direction
                                         
                                         addi $t3, $t3, -1                           # $t3 = decrement x-coordinate
@@ -1101,12 +1138,23 @@ horizontal_delete_loop:                 beq $t3, $t0, vertical_direction_start  
                                         
                                         add $t4, $t4, $t5
                                         add $t4, $t4, $t2                           # $t4 = current position on inner bottle array
-                                        sw $zero, 0($t4)
+                                        
+                                        lw $t6, 0($t4)                              # $t6 = color at current position
+                                        bne $t6, $zero, horizontal_inc_score        # if there is a block, increment the score
+                                        
+continue_horizontal_delete_loop:        sw $zero, 0($t4)                            # delete current block
                                         
                                         j horizontal_delete_loop
                                         
+horizontal_inc_score:                   lw $t7, SCORE                               # $t7 = current score
+                                        addi $t7, $t7, 1                            # increment score
+                                        sw $t7, SCORE                               # save new score in memory
+                                        
+                                        j continue_horizontal_delete_loop
+                                        
 vertical_direction_start:               lw $t2, TOP_LEFT_BOTTLE                     # $t2 = top left bottle display pointer
                                         addi $t3, $t1, 1                            # $t3 = current y-coordinate
+                                        
 check_vertical_direction:               beq $t3, 24, veritcal_direction_end         # if reached last row, leave
                                         
                                         sll $t4, $t3, 7                             # $t4 = y position offset
@@ -1160,9 +1208,19 @@ veritcal_delete_loop:                   beq $t3, $t1, check_four_or_more_end    
                                         
                                         add $t4, $t4, $t5
                                         add $t4, $t4, $t2                           # $t4 = current position on inner bottle array
-                                        sw $zero, 0($t4)
+                                        
+                                        lw $t6, 0($t4)                              # $t6 = color at current position
+                                        bne $t6, $zero, vertical_inc_score          # if there is a block, increment the score
+                                        
+continue_vertical_delete_loop:          sw $zero, 0($t4)                            # delete current block
                                         
                                         j veritcal_delete_loop
+                                        
+vertical_inc_score:                     lw $t7, SCORE                               # $t7 = current score
+                                        addi $t7, $t7, 1                            # increment score
+                                        sw $t7, SCORE                               # save new score in memory
+                                        
+                                        j continue_vertical_delete_loop
 
 check_four_or_more_end:                 jr $ra
                                         
