@@ -47,6 +47,8 @@ ORANGE:
     .word 0x00ff9000
 LIGHT_BLUE:
     .word 0x008888ff
+SCORE:
+    .word 0x00000000
 
     .text
 	.globl 
@@ -57,10 +59,12 @@ jal initialize_capsule
 jal create_next_capsule
 jal initialize_viruses
 jal draw_border
+jal initialize_score
 
 game_loop:      jal draw_next_capsule
                 jal draw_inner_screen
                 jal clear_bottle_opening
+                jal draw_score
                 jal draw_capsule
                 
                 jal sleep
@@ -217,6 +221,8 @@ generate_random_virus_position:     addi $sp, $sp, -4
                                     sw $t0, 0($sp)          # save return value on stack
 
                                     jr $ra
+                                    
+initialize_score:                   jr $ra
                         
 ##############################################################################
                         
@@ -394,10 +400,45 @@ red_color:                  sw $t0, 0($sp)
 yellow_color:               sw $t1, 0($sp)
                             jr $ra
                             
+draw_score:                 addi $sp, $sp, -4
+                            sw $ra, 0($sp)                      # save return address on stack
+                            
+                            lw $s0, ADDR_DSPL
+                            
+                            addi $s1, $s0, 3292 
+                            addi $sp, $sp, -4
+                            sw $s1, 0($sp)
+                            jal draw_eight
+                            
+                            addi $s1, $s0, 3308
+                            addi $sp, $sp, -4
+                            sw $s1, 0($sp)
+                            jal draw_eight
+                                    
+                            lw $ra, 0($sp)                      # restore return address from stack
+                            addi $sp, $sp, 4
+                            jr $ra
+                            
 ##############################################################################
                         
                         
 ################################ Draw Numbers ################################
+
+draw_number:                lw $t0, 0($sp)                      # $t0 = number
+                            addi $sp, $sp, 4
+                            
+                            beq $t0, 0, draw_zero
+                            beq $t0, 1, draw_one
+                            beq $t0, 2, draw_two
+                            beq $t0, 3, draw_three
+                            beq $t0, 4, draw_four
+                            beq $t0, 5, draw_five
+                            beq $t0, 6, draw_six
+                            beq $t0, 7, draw_seven
+                            beq $t0, 8, draw_eight
+                            beq $t0, 9, draw_nine
+                            
+                            j draw_E
                             
 draw_zero:                  lw $t0, 0($sp)                      # $t0 = position
                             addi $sp, $sp, 4
@@ -629,6 +670,31 @@ draw_nine:                  lw $t0, 0($sp)                      # $t0 = position
                             sw $t1, 0($t0)
                             sw $t1, 128($t0)
                             sw $t1, 256($t0)
+                            sw $t1, 260($t0)
+                            
+                            jr $ra
+                            
+draw_E:                     lw $t0, 0($sp)                      # $t0 = position
+                            addi $sp, $sp, 4
+                            
+                            li $t1, 0xffffff                    # $t1 = white
+                            
+                            # top
+                            sw $t1, 0($t0)
+                            sw $t1, 4($t0)
+                            sw $t1, 8($t0)
+                            
+                            # bottom 
+                            sw $t1, 512($t0)
+                            sw $t1, 516($t0)
+                            sw $t1, 520($t0)
+                            
+                            # left
+                            sw $t1, 128($t0)
+                            sw $t1, 256($t0)
+                            sw $t1, 384($t0)
+                            
+                            # middle
                             sw $t1, 260($t0)
                             
                             jr $ra

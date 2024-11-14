@@ -87,6 +87,22 @@ main:
 exit:
     li $v0, 10              # terminate the program gracefully
     syscall
+    
+draw_number:                lw $t0, 0($sp)                      # $t0 = number
+                            addi $sp, $sp, 4
+                            
+                            beq $t0, 0, draw_zero
+                            beq $t0, 1, draw_one
+                            beq $t0, 2, draw_two
+                            beq $t0, 3, draw_three
+                            beq $t0, 4, draw_four
+                            beq $t0, 5, draw_five
+                            beq $t0, 6, draw_six
+                            beq $t0, 7, draw_seven
+                            beq $t0, 8, draw_eight
+                            beq $t0, 9, draw_nine
+                            
+                            j draw_E
 
 draw_zero:                  lw $t0, 0($sp)                      # $t0 = position
                             addi $sp, $sp, 4
@@ -321,3 +337,29 @@ draw_nine:                  lw $t0, 0($sp)                      # $t0 = position
                             sw $t1, 260($t0)
                             
                             jr $ra
+                            
+draw_E:                     lw $t0, 0($sp)                      # $t0 = position
+                            addi $sp, $sp, 4
+                            
+                            li $t1, 0xffffff                    # $t1 = white
+                            
+                            # top
+                            sw $t1, 0($t0)
+                            sw $t1, 4($t0)
+                            sw $t1, 8($t0)
+                            
+                            # bottom 
+                            sw $t1, 512($t0)
+                            sw $t1, 516($t0)
+                            sw $t1, 520($t0)
+                            
+                            # left
+                            sw $t1, 128($t0)
+                            sw $t1, 256($t0)
+                            sw $t1, 384($t0)
+                            
+                            # middle
+                            sw $t1, 260($t0)
+                            
+                            jr $ra
+                            
