@@ -53,7 +53,7 @@ LIGHT_BLUE:
 	
 main:
 jal initialize_capsule
-jal initialize_inner_bottle
+# jal initialize_inner_bottle
 jal create_next_capsule
 jal initialize_viruses
 jal draw_border
@@ -74,8 +74,6 @@ game_loop:      jal draw_next_capsule
                 
                 sw $t0, 0($sp)                          # set argument for update_inner_bottle_state
                 jal update_inner_bottle_state           # checks for 4 or more blocks, deletes, does gravity, and repeats
-                
-                jal check_game_over                     # checks if game over, and handles it
                 
                 b game_loop
 
@@ -100,7 +98,7 @@ initialize_capsule:         addi $sp, $sp, -4                           # put $r
                             lw $ra, 0($sp)                              # restore return address
                             addi $sp, $sp, 4
                             
-                            lw $t3, INITIAL_CAPSULE_POSITION            # $t3 = position of bottle opening
+                            lw $t3, CENTR_BTTL                          # $t3 = position of bottle opening
                             
                             la $t7, CAPSULE                             # $t7 = location to store position of capsule
                             la $t8, COLOR_CAPSULE                       # $t8 = location to colors of capsule
@@ -590,6 +588,8 @@ collision:                              li $t0, 1
                                         mflo $t8                                    # $t8 = y offset
                                         add $t1, $t8, $a2                           # $t1 = y offset + x offset
                                         
+                                        blt $t1, $zero, handle_collision_game_over  # if the position offset is negative, then game is over
+                                        
                                         add $t1, $t1, $t3                           # $t1 = position of top/left capsule translated to inner bottle positioning
                                         lw $t5, 0($t4)                              # $t5 = color of top/left capsule
                                         sw $t5, 0($t1)                              # save top/left capsule on inner bottle
@@ -607,6 +607,8 @@ collision:                              li $t0, 1
                                         mflo $t8                                    # $t8 = y offset
                                         add $t2, $t8, $a2                           # $t2 = y offset + x offset
                                         
+                                        blt $t2, $zero, handle_collision_game_over  # if the position offset is negative, then game is over
+                                        
                                         add $t2, $t2, $t3                           # $t2 = position of top/left capsule translated to inner bottle positioning
                                         lw $t5, 4($t4)                              # $t5 = color of top/left capsule
                                         sw $t5, 0($t2)                              # save top/left capsule on inner bottle
@@ -614,7 +616,7 @@ collision:                              li $t0, 1
                                         # set new capsule
                                         la $t0, CAPSULE                             # $t0 = capsule position pointer
                                         la $t1, COLOR_CAPSULE                       # $t1 = capsule color pointer
-                                        lw $t2, INITIAL_CAPSULE_POSITION            # $t2 = next capsule position pointer
+                                        lw $t2, CENTR_BTTL                          # $t2 = next capsule position pointer
                                         la $t3, NEXT_CAPSULE_COLOR                  # $t3 = next capsule color pointer
                                         
                                         sw $t2, 0($t0)                              # save new top capsule position on memory
@@ -634,6 +636,9 @@ collision:                              li $t0, 1
                                         lw $ra, 0($sp)                              # restore return address from stack
                                         addi $sp, $sp, 4
                                         
+                                        j bottom_collision_end
+                                        
+handle_collision_game_over:             jal game_over                               # checks if game over, and handles it
                                         j bottom_collision_end
                                         
 horizontal_collision_test:              lw $t3, 128($t1)                            # $t3 = color of position below left capsule
@@ -919,25 +924,25 @@ gravitify_blocks_end:                   lw $ra, 0($sp)                          
                                         addi $sp, $sp, 4
                                         jr $ra
                                         
-check_game_over:                        la $t0, INNER_BOTTLE
-                                        addi $t0, $t0, 32                           # top center of inner bottle
+game_over:                              la $t0, INNER_BOTTLE
+                                        # addi $t0, $t0, 32                           # top center of inner bottle
                                         
-                                        lw $t1, 68($t0)                             # $t1 = color of bottom capsule
-                                        bne $t1, 0, handle_game_over                # if block in way, end game
-                                        lw $t1, 136($t0)                            # $t1 = color below new capsule
-                                        bne $t1, 0, handle_game_over                # if block below, end game
+                                        # lw $t1, 68($t0)                             # $t1 = color of bottom capsule
+                                        # bne $t1, 0, handle_game_over                # if block in way, end game
+                                        # lw $t1, 136($t0)                            # $t1 = color below new capsule
+                                        # bne $t1, 0, handle_game_over                # if block below, end game
                                         
-                                        j check_game_over_end
+                                        # j game_over_end
                                         
-handle_game_over:                       addi $sp, $sp, -4                           
-                                        sw $ra, 0($sp)                              # save return address on stack
+# handle_game_over:                       addi $sp, $sp, -4                           
+                                        # sw $ra, 0($sp)                              # save return address on stack
                                         
-                                        jal draw_inner_screen
-                                        jal clear_bottle_opening
+                                        # jal draw_inner_screen
+                                        # jal clear_bottle_opening
                                         
-                                        lw $ra, 0($sp)                              # restore return address from stack
-                                        addi $sp, $sp, 4                           
+                                        # lw $ra, 0($sp)                              # restore return address from stack
+                                        # addi $sp, $sp, 4                           
                                         
                                         j exit
                                         
-check_game_over_end:                    jr $ra
+game_over_end:                          jr $ra
