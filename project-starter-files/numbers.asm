@@ -84,6 +84,12 @@ main:
     sw $t0, 0($sp)
     jal draw_nine
     
+    lw $t0, ADDR_DSPL       # $t0 = base address for display
+    addi $t0, $t0, 1240
+    addi $sp, $sp, -4
+    sw $t0, 0($sp)
+    jal draw_E
+    
 exit:
     li $v0, 10              # terminate the program gracefully
     syscall

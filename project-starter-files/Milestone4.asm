@@ -22,19 +22,19 @@ CAPSULE:
 COLOR_CAPSULE:
     .space 8                # stores the colors of the capsule (left/top then right/bottom)
 NEXT_CAPSULE:
-    .word 0x100083e8        # stores the position of the next capsule
+    .word 0x100083e4        # stores the position of the next capsule
 NEXT_CAPSULE_COLOR:
     .space 8                # stores the colors of the next capsule (top then bottom)
 ADDR_KBRD:
     .word 0xffff0000
 CENTR_BTTL:
-    .word 0x100081ac
+    .word 0x10008124
 INITIAL_CAPSULE_POSITION:
     .word 0x1000832c
 INNER_BOTTLE_INITIAL_CAPSULE_POSITION:
     .space 4
 TOP_LEFT_BOTTLE:
-    .word 0x1000830c
+    .word 0x10008304
 RED:
     .word 0x00ff0000
 YELLOW:
@@ -47,7 +47,11 @@ ORANGE:
     .word 0x00ff9000
 LIGHT_BLUE:
     .word 0x008888ff
+SCORE_POSITION:
+    .word 0x10008cd0
 SCORE:
+    .word 0x00000000
+GAME_LOOP_COUNT:
     .word 0x00000000
 
     .text
@@ -70,9 +74,10 @@ game_loop:      jal draw_next_capsule
                 
                 jal sleep
                 
-                lw $t0, ADDR_KBRD                       # $t0 = base address for keyboard
-                lw $t8, 0($t0)                          # Load first word from keyboard
-                beq $t8, 1, handle_keyboard_input       # If first word 1, key is pressed
+                jal make_capsule_fall
+                jal update_game_loop_count
+                
+                jal handle_keyboard_input
                 
                 jal handle_capsule_bottom_collision     # checks if the current capsule has hit something
                 lw $t0, 0($sp)                          # $t0 = return value (updated) from handle_capsule_bottom_collision
@@ -144,9 +149,6 @@ initialize_viruses:         addi $sp, $sp, -4                   # save $ra
                             addi $sp, $sp, 4                   
                             
                             jal random_virus_color              # generate random virus color
-                            jal random_virus_color              # generate random virus color
-                            jal random_virus_color              # generate random virus color
-                            jal random_virus_color              # generate random virus color
                             
                             la $t0, INNER_BOTTLE                # $t0 = bottle grid pointer
                             
@@ -155,18 +157,15 @@ initialize_viruses:         addi $sp, $sp, -4                   # save $ra
                             add $s0, $s0, $t0                   # $s0 = position of virus 0
                             sw $t1, 0($s0)                      # save virus 0 color in memory
                             
-                            lw $t1, 0($sp)                      # $t1 = color of virus 1
-                            addi $sp, $sp, 4            
+                            lw $t1, LIGHT_PINK                  # $t1 = color of virus 1
                             add $s1, $s1, $t0                   # $s1 = position of virus 1
                             sw $t1, 0($s1)                      # save virus 1 color in memory
                             
-                            lw $t1, 0($sp)                      # $t1 = color of virus 2
-                            addi $sp, $sp, 4            
+                            lw $t1, ORANGE                      # $t1 = color of virus 2
                             add $s2, $s2, $t0                   # $s2 = position of virus 2
                             sw $t1, 0($s2)                      # save virus 2 color in memory
                             
-                            lw $t1, 0($sp)                      # $t1 = color of virus 3
-                            addi $sp, $sp, 4            
+                            lw $t1, LIGHT_BLUE                  # $t1 = color of virus 3
                             add $s3, $s3, $t0                   # $s3 = position of virus 3
                             sw $t1, 0($s3)                      # save virus 3 color in memory
                             
@@ -238,15 +237,20 @@ clear_bottle_opening:   li $t0, 0               # $t0 = black
                         sw $t0, 0($t1)
                         sw $t0, 4($t1)
                         
-                        # middle row
+                        # second row
                         sw $t0, 124($t1)
                         sw $t0, 128($t1)
                         sw $t0, 132($t1)
                         
-                        # last row
+                        # third row
                         sw $t0, 252($t1)
                         sw $t0, 256($t1)
                         sw $t0, 260($t1)
+                        
+                        # fourth row
+                        sw $t0, 380($t1)
+                        sw $t0, 384($t1)
+                        sw $t0, 388($t1)
                         
                         jr $ra
 
@@ -282,20 +286,20 @@ reset_screen:       lw $t0, ADDR_DSPL       # $t0 = start position
                         j reset_loop
 end_reset_screen:   jr $ra
     
-draw_border:        lw $t0, ADDR_DSPL                   # $t0 = base address for display
+draw_border:        lw $t0, TOP_LEFT_BOTTLE             # $t0 = address pointer to top left of bottle
                     li $t1, 128                         # $t1 = row delta
                     li $t2, 0x808080                    # $t2 = border color
                     
-                    addi $t3, $t0, 648                  # $t3 = current left position
-                    addi $t4, $t0, 3976                 # $t4 = end left position
+                    addi $t3, $t0, -132                 # $t3 = current left position
+                    addi $t4, $t3, 3328                 # $t4 = end left position
                     left: beq $t3, $t4, end_left
                         sw $t2, 0($t3)
                         addu $t3, $t3, $t1
                         j left
                     end_left:
                     
-                    addi $t3, $t0, 720                  # $t3 = current right position
-                    addi $t4, $t0, 4048                 # $t4 = end right position
+                    addi $t3, $t0, -60                  # $t3 = current right position
+                    addi $t4, $t3, 3328                 # $t4 = end right position
                     right: beq $t3, $t4, end_right
                         sw $t2, 0($t3)
                         addu $t3, $t3, $t1
@@ -303,16 +307,16 @@ draw_border:        lw $t0, ADDR_DSPL                   # $t0 = base address for
                     end_right:
                     
                     li $t1, 4                           # $t1 = column delta
-                    addi $t3, $t0, 3848                 # $t3 = current bottom position
-                    addi $t4, $t0, 3924                 # $t4 = end bottom position
+                    addi $t3, $t0, 3068                 # $t3 = current bottom position
+                    addi $t4, $t3, 76                   # $t4 = end bottom position
                     bottom: beq $t3, $t4, end_bottom
                         sw $t2, 0($t3)
                         addu $t3, $t3, $t1
                         j bottom
                     end_bottom:
                     
-                    addi $t3, $t0, 648                  # $t3 = current bottom position
-                    addi $t4, $t0, 724                  # $t4 = end bottom position
+                    addi $t3, $t0, -132                 # $t3 = current bottom position
+                    addi $t4, $t3, 76                   # $t4 = end bottom position
                     top: beq $t3, $t4, end_top
                         sw $t2, 0($t3)
                         addu $t3, $t3, $t1
@@ -320,17 +324,16 @@ draw_border:        lw $t0, ADDR_DSPL                   # $t0 = base address for
                     end_top:
                     
                     bottle_opening:
-                        addi $t3, $t0, 420
-                        sw $t2, 0($t3)
-                        sw $t2, 128($t3)
-                        sw $t2, 16($t3)
-                        sw $t2, 144($t3)
+                        lw $t3, CENTR_BTTL
+                        sw $t2, 120($t3)
+                        sw $t2, 136($t3)
+                        sw $t2, 248($t3)
+                        sw $t2, 264($t3)
                         
                         li $t2, 0x000000                # $t2 = black
-                        addi $t3, $t0, 680
-                        sw $t2, 0($t3)
-                        sw $t2, 4($t3)
-                        sw $t2, 8($t3)
+                        sw $t2, 380($t3)
+                        sw $t2, 384($t3)
+                        sw $t2, 388($t3)
                     
                     jr $ra
     
@@ -401,22 +404,21 @@ red_color:                  sw $t0, 0($sp)
 yellow_color:               sw $t1, 0($sp)
                             jr $ra
                             
-clear_score_from_display:   lw $t0, ADDR_DSPL       
-                            li $t1, 3292                            # $t1 = display address offset
+clear_score_from_display:   lw $t0, SCORE_POSITION       
+                            addi $t1, $t0, 640
                             
-clear_score_row_loop:       beq $t1, 3932, clear_score_end          # if done with all rows, exit
+clear_score_row_loop:       beq $t0, $t1, clear_score_end           # if done with all rows, exit
 
-                            addi $t2, $t1, 28
+                            addi $t2, $t0, 44
 
-clear_score_col_loop:       beq $t1, $t2, clear_score_col_loop_end  # if reached last col, go to next row
+clear_score_col_loop:       beq $t0, $t2, clear_score_col_loop_end  # if reached last col, go to next row
 
-                            add $t3, $t0, $t1                       # $t3 = current address on display
-                            sw $zero, 0($t3)                        # delete pixel at $t3
-                            addi $t1, $t1, 4                        # increment display address offset
+                            sw $zero, 0($t0)                        # delete pixel at $t3
+                            addi $t0, $t0, 4                        # increment display address offset
                             
                             j clear_score_col_loop
 
-clear_score_col_loop_end:   addi $t1, $t1, 100
+clear_score_col_loop_end:   addi $t0, $t0, 84
                             
                             j clear_score_row_loop
                             
@@ -425,15 +427,31 @@ clear_score_end:            jr $ra
 draw_score:                 addi $sp, $sp, -4
                             sw $ra, 0($sp)                      # save return address on stack
                             
-                            lw $s0, ADDR_DSPL
+                            lw $s0, SCORE_POSITION
                             lw $s7, SCORE                       # $s7 = current score
                             
+                            # 1's place
                             li $s6, 10
                             div $s7, $s6
-                            mfhi $s2                            # remainder to $s2
-                            mflo $s3                            # quotient to $s3
+                            mfhi $s3                            # $s3 = remainder
+                            mflo $s7                            # $s7 = quotient
                             
-                            addi $s1, $s0, 3292 
+                            addi $s1, $s0, 32
+                            addi $sp, $sp, -4
+                            sw $s1, 0($sp)                      # save address for 1's place on stack
+                            
+                            addi $sp, $sp, -4
+                            sw $s3, 0($sp)                      # save number to be drawn on stack
+                            
+                            jal draw_number
+                            
+                            # 10's place
+                            li $s6, 10
+                            div $s7, $s6
+                            mfhi $s3                            # $s3 = remainder
+                            mflo $s7                            # $s7 = quotient
+                            
+                            addi $s1, $s0, 16 
                             addi $sp, $sp, -4
                             sw $s1, 0($sp)                      # save address for 10's place on stack
                             
@@ -442,12 +460,18 @@ draw_score:                 addi $sp, $sp, -4
                             
                             jal draw_number
                             
-                            addi $s1, $s0, 3308 
+                            # 100's place
+                            li $s6, 10
+                            div $s7, $s6
+                            mfhi $s3                            # $s3 = remainder
+                            mflo $s7                            # $s7 = quotient
+                            
+                            addi $s1, $s0, 0
                             addi $sp, $sp, -4
                             sw $s1, 0($sp)                      # save address for 1's place on stack
                             
                             addi $sp, $sp, -4
-                            sw $s2, 0($sp)                      # save number to be drawn on stack
+                            sw $s3, 0($sp)                      # save number to be drawn on stack
                             
                             jal draw_number
                                     
@@ -744,23 +768,74 @@ sleep:      li $v0, 32      # $v0 = system call for sleeping
             li $a0, 67      # $a0 = time (in milliseconds) to sleep
             syscall         # sleep
             jr $ra
+            
+update_game_loop_count:         lw $t0, GAME_LOOP_COUNT
+                                addi $t0, $t0, 1
+                                sw $t0, GAME_LOOP_COUNT
+                                
+update_game_loop_count_end:     jr $ra
+            
+make_capsule_fall:              lw $t0, GAME_LOOP_COUNT
+                                li $t1, 15
+                                div $t0, $t1
+                                mfhi $t0 # remainder to $t0
+                                bne $t0, 0, make_capsule_fall_end                   # if not divisible by 15, don't fall
 
-handle_keyboard_input:      addi $sp, $sp, -4               # save 
-                            sw $ra, 0($sp)                  #   return address
+                                la $t0, CAPSULE                                     # $t0 = capsule position pointers
+                                lw $t2, 0($t0)                                      # $t2 = top/left position
+                                lw $t3, 4($t0)                                      # $t3 = bottom/right position
+                            
+                                subu $t4, $t3, $t2
+                            
+capsule_fall_vertical:          bne $t4, 128, capsule_fall_horizontal               # if capsule is not vertical, go to horizontal
 
-                            lw $a0, 4($t0)                  # Load second word from keyboard
-                            beq $a0, 0x71, exit             # Check if the key q was pressed
-                            beq $a0, 0x61, a_key_press
-                            beq $a0, 0x64, d_key_press
-                            beq $a0, 0x73, s_key_press
-                            beq $a0, 0x77, w_key_press
+                                addi $t4, $t3, 128                                  # $t4 = position below the capsule
+                                lw $t4, 0($t4)                                      # $t4 = color at position below the capsule
+                                bne $t4, $zero, make_capsule_fall_end               # if there if no space to move, then exit function
+        
+                                addi $t2, $t2, 128                                  # $t2 = new top position of capsule
+                                addi $t3, $t3, 128                                  # $t3 = new bottom position of capsule
+                                
+                                sw $t2, 0($t0)                                      # save new top position
+                                sw $t3, 4($t0)                                      # save new bottom position
+                                
+                                j make_capsule_fall_end
+                                
+capsule_fall_horizontal:        addi $t4, $t2, 128                                  # $t4 = position below the left capsule
+                                addi $t5, $t3, 128                                  # $t5 = position below the right capsule
+                                lw $t4, 0($t4)                                      # $t4 = color at position below the left capsule
+                                lw $t5, 0($t5)                                      # $t5 = color at position below the right capsule
+                                bne $t4, $zero, make_capsule_fall_end               # if there if no space to move,
+                                bne $t5, $zero, make_capsule_fall_end               #       then exit function
+        
+                                addi $t2, $t2, 128                                  # $t2 = new left position of capsule
+                                addi $t3, $t3, 128                                  # $t3 = new right position of capsule
+                                
+                                sw $t2, 0($t0)                                      # save new left position
+                                sw $t3, 4($t0)                                      # save new right position
                             
-                            # li $v0, 1                       # ask system to print $a0
-                            # syscall
+make_capsule_fall_end:          jr $ra
+
+handle_keyboard_input:          addi $sp, $sp, -4                           # save 
+                                sw $ra, 0($sp)                              #   return address on stack
                             
-end_handle_keyboard_input:  lw $ra, 0($sp)                  # restore
-                            addi $sp, $sp, 4                #   return address
-                            jr $ra
+                                lw $t0, ADDR_KBRD                           # $t0 = base address for keyboard
+                                lw $t8, 0($t0)                              # Load first word from keyboard
+                                bne $t8, 1, end_handle_keyboard_input       # If first word is not 1, key is not pressed, so exit
+    
+                                lw $a0, 4($t0)                              # Load second word from keyboard
+                                beq $a0, 0x71, exit                         # Check if the key q was pressed
+                                beq $a0, 0x61, a_key_press
+                                beq $a0, 0x64, d_key_press
+                                beq $a0, 0x73, s_key_press
+                                beq $a0, 0x77, w_key_press
+                                
+                                # li $v0, 1                       # ask system to print $a0
+                                # syscall
+                                
+end_handle_keyboard_input:      lw $ra, 0($sp)                  # restore
+                                addi $sp, $sp, 4                #   return address from stack
+                                jr $ra
 
 a_key_press:        la $t0, CAPSULE                 # $t0 = capsule position pointers
                     lw $t2, 0($t0)                  # $t2 = top/left position
@@ -974,7 +1049,7 @@ collision:                              li $t0, 1
                                         
                                         jal create_next_capsule                     # set new capsule color
                                         
-                                        lw $ra, 0($sp)                              # restore return address from stack
+                                        lw $ra, 0($sp)                              # restore return address from stack 
                                         addi $sp, $sp, 4
                                         
                                         j bottom_collision_end
@@ -1304,7 +1379,18 @@ game_over:                              la $t0, INNER_BOTTLE
                                         # jal clear_bottle_opening
                                         
                                         # lw $ra, 0($sp)                              # restore return address from stack
-                                        # addi $sp, $sp, 4                           
+                                        # addi $sp, $sp, 4   
+                                        
+                                        addi $sp, $sp, -4                           
+                                        sw $ra, 0($sp)                              # save return address on stack
+                                        
+                                        jal clear_bottle_opening
+                                        jal draw_inner_screen
+                                        jal draw_capsule
+                                        jal sleep
+                                        
+                                        lw $ra, 0($sp)                              # restore return address from stack
+                                        addi $sp, $sp, 4   
                                         
                                         j exit
                                         
