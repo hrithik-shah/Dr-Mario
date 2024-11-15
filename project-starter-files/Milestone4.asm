@@ -53,6 +53,14 @@ SCORE:
     .word 0x00000000
 GAME_LOOP_COUNT:
     .word 0x00000000
+DR_MARIO_POSITION:
+    .word 0x10008550
+RED_VIRUS_POSITION:
+    .word 0x00000000
+YELLOW_VIRUS_POSITION:
+    .word 0x00000000
+BLUE_VIRUS_POSITION:
+    .word 0x00000000
 
     .text
 	.globl 
@@ -63,6 +71,7 @@ jal initialize_capsule
 jal create_next_capsule
 jal initialize_viruses
 jal draw_border
+jal draw_dr_mario
 jal initialize_score
 
 game_loop:      jal draw_next_capsule
@@ -285,6 +294,104 @@ reset_screen:       lw $t0, ADDR_DSPL       # $t0 = start position
                         addi $t0, $t0, 4    # $t0 = next position
                         j reset_loop
 end_reset_screen:   jr $ra
+
+draw_dr_mario:          lw $t0, DR_MARIO_POSITION       # $t0 = position of mario on display
+
+                        # draw skin
+                        li $t1, 0xfeb46b                # $t1 = peach color
+                        
+                        sw $t1, 640($t0)
+                        sw $t1, 644($t0)
+                        sw $t1, 516($t0)
+                        sw $t1, 648($t0)
+                        sw $t1, 520($t0)
+                        sw $t1, 524($t0)
+                        sw $t1, 396($t0)
+                        sw $t1, 656($t0)
+                        
+                        sw $t1, 404($t0)
+                        sw $t1, 408($t0)
+                        sw $t1, 532($t0)
+                        sw $t1, 536($t0)
+                        sw $t1, 540($t0)
+                        sw $t1, 660($t0)
+                        sw $t1, 664($t0)
+                        
+                        sw $t1, 788($t0)
+                        sw $t1, 792($t0)
+                        sw $t1, 796($t0)
+                        sw $t1, 800($t0)
+                        
+                        sw $t1, 904($t0)
+                        sw $t1, 908($t0)
+                        sw $t1, 912($t0)
+                        sw $t1, 916($t0)
+                        sw $t1, 920($t0)
+                        sw $t1, 924($t0)
+                        sw $t1, 928($t0)
+                        
+                        sw $t1, 548($t0)
+                        sw $t1, 676($t0)
+                        
+                        # draw mousestach
+                        li $t1, 0x30140c                # $t1 = dark brown color
+                        
+                        sw $t1, 772($t0)
+                        sw $t1, 776($t0)
+                        sw $t1, 780($t0)
+                        sw $t1, 784($t0)
+                        
+                        sw $t1, 652($t0)
+                        
+                        # draw eyes
+                        li $t1, 0x000000                # $t1 = dark black color
+                        
+                        sw $t1, 528($t0)
+                        sw $t1, 400($t0)
+                        
+                        # draw hair
+                        li $t1, 0x8b7216                # $t1 = some dirty color for hair
+                        
+                        sw $t1, 8($t0)
+                        sw $t1, 136($t0)
+                        
+                        sw $t1, 148($t0)
+                        sw $t1, 152($t0)
+                        sw $t1, 156($t0)
+                        sw $t1, 160($t0)
+                        
+                        sw $t1, 412($t0)
+                        sw $t1, 416($t0)
+                        sw $t1, 420($t0)
+                        sw $t1, 544($t0)
+                        sw $t1, 672($t0)
+                        sw $t1, 668($t0)
+                        
+                        sw $t1, 552($t0)
+                        sw $t1, 680($t0)
+                        sw $t1, 808($t0)
+                        sw $t1, 804($t0)
+                        
+                        # draw headband
+                        li $t1, 0x0854bc                    # $t1 = blue   
+                        
+                        sw $t1, 276($t0)
+                        sw $t1, 280($t0)
+                        sw $t1, 284($t0)
+                        sw $t1, 288($t0)
+                        sw $t1, 292($t0)
+                        
+                        li $t1, 0xd5d5d5                    # $t1 = grey   
+                        
+                        sw $t1, 272($t0)
+                        sw $t1, 144($t0)
+                        
+                        li $t1, 0xfefefe                    # $t1 = light grey   
+                        
+                        sw $t1, 268($t0)
+                        sw $t1, 140($t0)
+                            
+                        jr $ra
     
 draw_border:        lw $t0, TOP_LEFT_BOTTLE             # $t0 = address pointer to top left of bottle
                     li $t1, 128                         # $t1 = row delta
