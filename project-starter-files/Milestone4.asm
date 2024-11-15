@@ -95,6 +95,8 @@ game_loop:      jal draw_next_capsule
                 sw $t0, 0($sp)                          # set argument for update_inner_bottle_state
                 jal update_inner_bottle_state           # checks for 4 or more blocks, deletes, does gravity, and repeats
                 
+                jal handle_virus_deletion
+                
                 b game_loop
 
 exit:
@@ -1483,6 +1485,122 @@ gravitify_blocks_update_display:        jal clear_bottle_opening
 gravitify_blocks_end:                   lw $ra, 0($sp)                              # restore return address from stack
                                         addi $sp, $sp, 4
                                         jr $ra
+                                        
+handle_virus_deletion:                  addi $sp, $sp, -4
+                                        sw $ra, 0($sp)                              # save return address on stack
+                                        
+                                        jal handle_red_virus_deletion
+                                        jal handle_yellow_virus_deletion
+                                        jal handle_blue_virus_deletion
+                                        
+                                        lw $ra, 0($sp)
+                                        addi $sp, $sp, 4                            # restore return address from stack
+                                        jr $ra
+                                        
+handle_red_virus_deletion:              la $t0, INNER_BOTTLE
+                                        li $t1, 0                                   # $t1 = current inner bottle x-coordinate
+                                        li $t2, 0                                   # $t2 = current inner bottle y-coordinate
+                                        lw $t5, LIGHT_PINK                          # $t5 = red virus color
+                
+red_virus_row_loop:                     beq $t2, 24, delete_red_virus               # if we have reached the last row, then we have not found virus, so delete it
+                
+red_virus_col_loop:                     beq $t1, 17, red_virus_col_loop_end         # if we have reached the last col, exit loop
+                                        
+                                        # do logic
+                                        sll $t3, $t1, 2                             # $t3 = x position offset
+                                        
+                                        li $t4, 68                                  # $t4 = bytes per row for inner bottle array
+                                        multu $t2, $t4                               
+                                        mflo $t4                                    # $t4 = y position offset
+                                        
+                                        add $t3, $t3, $t4
+                                        add $t3, $t3, $t0                           # $t3 = current position on inner bottle array
+                                        
+                                        lw $t4, 0($t3)                              # $t4 = color at current position
+                                        beq $t4, $t5, red_virus_deletion_end        # if we find the virus, exit
+                                        
+                                        addi $t1, $t1, 1                            # increment col pointer
+                                        j red_virus_col_loop
+                                        
+red_virus_col_loop_end:                 li $t1, 0                                   # reset col pointer
+                                        addi $t2, $t2, 1                            # increment row pointer
+                                        j red_virus_row_loop
+                                        
+delete_red_virus:                       lw $t0, RED_VIRUS_POSITION                  
+                                        sw $zero, 0($t0)
+                                        j red_virus_deletion_end
+
+red_virus_deletion_end:                 jr $ra
+                                        
+handle_yellow_virus_deletion:           la $t0, INNER_BOTTLE
+                                        li $t1, 0                                   # $t1 = current inner bottle x-coordinate
+                                        li $t2, 0                                   # $t2 = current inner bottle y-coordinate
+                                        lw $t5, ORANGE                              # $t5 = red virus color
+                
+yellow_virus_row_loop:                  beq $t2, 24, delete_yellow_virus            # if we have reached the last row, then we have not found virus, so delete it
+                
+yellow_virus_col_loop:                  beq $t1, 17, yellow_virus_col_loop_end      # if we have reached the last col, exit loop
+                                        
+                                        # do logic
+                                        sll $t3, $t1, 2                             # $t3 = x position offset
+                                        
+                                        li $t4, 68                                  # $t4 = bytes per row for inner bottle array
+                                        multu $t2, $t4                               
+                                        mflo $t4                                    # $t4 = y position offset
+                                        
+                                        add $t3, $t3, $t4
+                                        add $t3, $t3, $t0                           # $t3 = current position on inner bottle array
+                                        
+                                        lw $t4, 0($t3)                              # $t4 = color at current position
+                                        beq $t4, $t5, yellow_virus_deletion_end     # if we find the virus, exit
+                                        
+                                        addi $t1, $t1, 1                            # increment col pointer
+                                        j yellow_virus_col_loop
+                                        
+yellow_virus_col_loop_end:              li $t1, 0                                   # reset col pointer
+                                        addi $t2, $t2, 1                            # increment row pointer
+                                        j yellow_virus_row_loop
+                                        
+delete_yellow_virus:                    lw $t0, YELLOW_VIRUS_POSITION                  
+                                        sw $zero, 0($t0)
+                                        j yellow_virus_deletion_end
+
+yellow_virus_deletion_end:              jr $ra
+                                        
+handle_blue_virus_deletion:             la $t0, INNER_BOTTLE
+                                        li $t1, 0                                   # $t1 = current inner bottle x-coordinate
+                                        li $t2, 0                                   # $t2 = current inner bottle y-coordinate
+                                        lw $t5, LIGHT_BLUE                          # $t5 = red virus color
+                
+blue_virus_row_loop:                    beq $t2, 24, delete_blue_virus              # if we have reached the last row, then we have not found virus, so delete it
+                
+blue_virus_col_loop:                    beq $t1, 17, blue_virus_col_loop_end        # if we have reached the last col, exit loop
+                                        
+                                        # do logic
+                                        sll $t3, $t1, 2                             # $t3 = x position offset
+                                        
+                                        li $t4, 68                                  # $t4 = bytes per row for inner bottle array
+                                        multu $t2, $t4                               
+                                        mflo $t4                                    # $t4 = y position offset
+                                        
+                                        add $t3, $t3, $t4
+                                        add $t3, $t3, $t0                           # $t3 = current position on inner bottle array
+                                        
+                                        lw $t4, 0($t3)                              # $t4 = color at current position
+                                        beq $t4, $t5, blue_virus_deletion_end       # if we find the virus, exit
+                                        
+                                        addi $t1, $t1, 1                            # increment col pointer
+                                        j blue_virus_col_loop
+                                        
+blue_virus_col_loop_end:                li $t1, 0                                   # reset col pointer
+                                        addi $t2, $t2, 1                            # increment row pointer
+                                        j blue_virus_row_loop
+                                        
+delete_blue_virus:                      lw $t0, BLUE_VIRUS_POSITION                  
+                                        sw $zero, 0($t0)
+                                        j blue_virus_deletion_end
+
+blue_virus_deletion_end:                jr $ra
                                         
 game_over:                              la $t0, INNER_BOTTLE
                                         # addi $t0, $t0, 32                           # top center of inner bottle
