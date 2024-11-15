@@ -56,11 +56,11 @@ GAME_LOOP_COUNT:
 DR_MARIO_POSITION:
     .word 0x10008550
 RED_VIRUS_POSITION:
-    .word 0x00000000
+    .word 0x10008a5c
 YELLOW_VIRUS_POSITION:
-    .word 0x00000000
+    .word 0x10008ae4
 BLUE_VIRUS_POSITION:
-    .word 0x00000000
+    .word 0x10008a6c
 
     .text
 	.globl 
@@ -72,6 +72,7 @@ jal create_next_capsule
 jal initialize_viruses
 jal draw_border
 jal draw_dr_mario
+jal draw_viruses
 jal initialize_score
 
 game_loop:      jal draw_next_capsule
@@ -391,6 +392,20 @@ draw_dr_mario:          lw $t0, DR_MARIO_POSITION       # $t0 = position of mari
                         sw $t1, 268($t0)
                         sw $t1, 140($t0)
                             
+                        jr $ra
+                        
+draw_viruses:           lw $t0, RED_VIRUS_POSITION
+                        lw $t1, LIGHT_PINK
+                        sw $t1, 0($t0)                      # draw red virus
+                        
+                        lw $t0, YELLOW_VIRUS_POSITION
+                        lw $t1, ORANGE
+                        sw $t1, 0($t0)                      # draw yellow virus
+                        
+                        lw $t0, BLUE_VIRUS_POSITION
+                        lw $t1, LIGHT_BLUE
+                        sw $t1, 0($t0)                      # draw blue virus
+                        
                         jr $ra
     
 draw_border:        lw $t0, TOP_LEFT_BOTTLE             # $t0 = address pointer to top left of bottle
