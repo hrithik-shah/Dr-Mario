@@ -69,7 +69,6 @@ FALLING_SPEED:
 	
 main:
 jal initialize_capsule
-# jal initialize_inner_bottle
 jal create_next_capsule
 jal initialize_viruses
 jal draw_border
@@ -605,7 +604,57 @@ draw_score:                 addi $sp, $sp, -4
                             addi $sp, $sp, 4
                             jr $ra
                             
-draw_game_over:             jr $ra
+draw_game_over:             # game: 1st line
+                            lw $t0, ADDR_DSPL       # $t0 = base address for display
+                            addi $t0, $t0, 1160
+                            addi $sp, $sp, -4
+                            sw $t0, 0($sp)
+                            jal draw_G
+                            
+                            lw $t0, ADDR_DSPL       # $t0 = base address for display
+                            addi $t0, $t0, 1180
+                            addi $sp, $sp, -4
+                            sw $t0, 0($sp)
+                            jal draw_A
+                            
+                            lw $t0, ADDR_DSPL       # $t0 = base address for display
+                            addi $t0, $t0, 1196
+                            addi $sp, $sp, -4
+                            sw $t0, 0($sp)
+                            jal draw_M
+                            
+                            lw $t0, ADDR_DSPL       # $t0 = base address for display
+                            addi $t0, $t0, 1220
+                            addi $sp, $sp, -4
+                            sw $t0, 0($sp)
+                            jal draw_E
+                            
+                            # over: 2nd line
+                            lw $t0, ADDR_DSPL       # $t0 = base address for display
+                            addi $t0, $t0, 1980
+                            addi $sp, $sp, -4
+                            sw $t0, 0($sp)
+                            jal draw_O
+                            
+                            lw $t0, ADDR_DSPL       # $t0 = base address for display
+                            addi $t0, $t0, 1996
+                            addi $sp, $sp, -4
+                            sw $t0, 0($sp)
+                            jal draw_V
+                            
+                            lw $t0, ADDR_DSPL       # $t0 = base address for display
+                            addi $t0, $t0, 2012
+                            addi $sp, $sp, -4
+                            sw $t0, 0($sp)
+                            jal draw_E
+                            
+                            lw $t0, ADDR_DSPL       # $t0 = base address for display
+                            addi $t0, $t0, 2028
+                            addi $sp, $sp, -4
+                            sw $t0, 0($sp)
+                            jal draw_R
+                            
+                            jr $ra
                             
 ##############################################################################
                         
@@ -1867,7 +1916,12 @@ delete_blue_virus:                      lw $t0, BLUE_VIRUS_POSITION
 
 blue_virus_deletion_end:                jr $ra
                                         
-game_over:                              jal reset_screen
+game_over:                              jal draw_inner_screen
+                                        jal draw_capsule
+                                        
+                                        jal sleep
+                                        
+                                        jal reset_screen
                                         jal draw_game_over
                                         
                                         j exit
