@@ -22,7 +22,7 @@ CAPSULE:
 COLOR_CAPSULE:
     .space 8                # stores the colors of the capsule (left/top then right/bottom)
 NEXT_CAPSULE:
-    .word 0x100083e4        # stores the position of the next capsule
+    .word 0x100081e4        # stores the position of the next capsule
 NEXT_CAPSULE_COLOR:
     .space 8                # stores the colors of the next capsule (top then bottom)
 ADDR_KBRD:
@@ -50,31 +50,38 @@ LIGHT_BLUE:
 SCORE_POSITION:
     .word 0x10008cd0
 SCORE:
-    .word 0x00000000
+    .word 0x0
 GAME_LOOP_COUNT:
-    .word 0x00000000
+    .word 0x0
 DR_MARIO_POSITION:
-    .word 0x10008550
+    .word 0x10008350
 RED_VIRUS_POSITION:
-    .word 0x10008a5c
+    .word 0x100087dc
 YELLOW_VIRUS_POSITION:
-    .word 0x10008ae4
+    .word 0x10008864
 BLUE_VIRUS_POSITION:
-    .word 0x10008a6c
+    .word 0x100087ec
 FALLING_SPEED:
     .word 0xf
+HIGH_SCORE_POSITION:
+    .word 0x10008950
+HIGH_SCORE:
+    .word 0x0
     
     .text
 	.globl 
 	
 main:
+jal initialize_inner_bottle
 jal initialize_capsule
 jal create_next_capsule
 jal initialize_viruses
+jal initialize_score
+jal initialize_game_loop_count
 jal draw_border
 jal draw_dr_mario
 jal draw_viruses
-jal initialize_score
+jal draw_high_score
 
 game_loop:      jal draw_next_capsule
                 jal draw_inner_screen
@@ -110,6 +117,18 @@ exit:
 ############################ Memory Initializers #############################
 
 
+initialize_inner_bottle:        la $t0, INNER_BOTTLE                            # $t0 = inner bottle pointer
+                                addi $t1, $t0, 1632                             # $t1 = end position for inner bottle
+                            
+initialize_inner_bottle_loop:   beq $t0, $t1, initialize_inner_bottle_end       # if reached last positon, exit
+                                    
+                                sw $zero, 0($t0)                                # delete pixel at current position
+                                addi $t0, $t0, 4                                # move pointer to next word
+                                
+                                j initialize_inner_bottle_loop
+                    
+initialize_inner_bottle_end:    jr $ra
+
 initialize_capsule:         addi $sp, $sp, -4                           # put $ra onto stack
                             sw $ra, 0($sp)
                             jal random_color
@@ -131,14 +150,6 @@ initialize_capsule:         addi $sp, $sp, -4                           # put $r
                             addi $t3, $t3, 128
                             sw $t3, 4($t7)                              # save bottom capsule position in memory
                             sw $t5, 4($t8)                              # save bottom capsule color in memory
-                            
-                            jr $ra
-                        
-initialize_inner_bottle:    # save the initial capsule position on inner bottle
-                            la $t0, INNER_BOTTLE
-                            addi $t0, $t0, 32
-                            la $t1, INNER_BOTTLE_INITIAL_CAPSULE_POSITION
-                            sw $t0, 0($t1)
                             
                             jr $ra
                         
@@ -236,7 +247,11 @@ generate_random_virus_position:     addi $sp, $sp, -4
 
                                     jr $ra
                                     
-initialize_score:                   jr $ra
+initialize_score:                   sw $zero, SCORE
+                                    jr $ra
+                                    
+initialize_game_loop_count:         sw $zero, GAME_LOOP_COUNT
+                                    jr $ra
                         
 ##############################################################################
                         
@@ -548,6 +563,61 @@ clear_score_col_loop_end:   addi $t0, $t0, 84
                             j clear_score_row_loop
                             
 clear_score_end:            jr $ra
+
+draw_high_score:            addi $sp, $sp, -4
+                            sw $ra, 0($sp)                      # save return address on stack
+                            
+                            lw $s0, HIGH_SCORE_POSITION
+                            lw $s7, HIGH_SCORE                  # $s7 = current high score
+                            
+                            # 1's place
+                            li $s6, 10
+                            div $s7, $s6
+                            mfhi $s3                            # $s3 = remainder
+                            mflo $s7                            # $s7 = quotient
+                            
+                            addi $s1, $s0, 32
+                            addi $sp, $sp, -4
+                            sw $s1, 0($sp)                      # save address for 1's place on stack
+                            
+                            addi $sp, $sp, -4
+                            sw $s3, 0($sp)                      # save number to be drawn on stack
+                            
+                            jal draw_number
+                            
+                            # 10's place
+                            li $s6, 10
+                            div $s7, $s6
+                            mfhi $s3                            # $s3 = remainder
+                            mflo $s7                            # $s7 = quotient
+                            
+                            addi $s1, $s0, 16 
+                            addi $sp, $sp, -4
+                            sw $s1, 0($sp)                      # save address for 10's place on stack
+                            
+                            addi $sp, $sp, -4
+                            sw $s3, 0($sp)                      # save number to be drawn on stack
+                            
+                            jal draw_number
+                            
+                            # 100's place
+                            li $s6, 10
+                            div $s7, $s6
+                            mfhi $s3                            # $s3 = remainder
+                            mflo $s7                            # $s7 = quotient
+                            
+                            addi $s1, $s0, 0
+                            addi $sp, $sp, -4
+                            sw $s1, 0($sp)                      # save address for 100's place on stack
+                            
+                            addi $sp, $sp, -4
+                            sw $s3, 0($sp)                      # save number to be drawn on stack
+                            
+                            jal draw_number
+                                    
+                            lw $ra, 0($sp)                      # restore return address from stack
+                            addi $sp, $sp, 4
+                            jr $ra
                             
 draw_score:                 addi $sp, $sp, -4
                             sw $ra, 0($sp)                      # save return address on stack
@@ -604,7 +674,10 @@ draw_score:                 addi $sp, $sp, -4
                             addi $sp, $sp, 4
                             jr $ra
                             
-draw_game_over:             # game: 1st line
+draw_game_over:             addi $sp, $sp, -4
+                            sw $ra, 0($sp)                      # save return address on stack
+                            
+                            # game: 1st line
                             lw $t0, ADDR_DSPL       # $t0 = base address for display
                             addi $t0, $t0, 1160
                             addi $sp, $sp, -4
@@ -654,6 +727,8 @@ draw_game_over:             # game: 1st line
                             sw $t0, 0($sp)
                             jal draw_R
                             
+                            lw $ra, 0($sp)                      # restore return address from stack
+                            addi $sp, $sp, 4
                             jr $ra
                             
 ##############################################################################
@@ -1101,7 +1176,7 @@ draw_R:                     lw $t0, 0($sp)                      # $t0 = position
 ############################## Event Handlers ################################
 
 sleep:      li $v0, 32      # $v0 = system call for sleeping
-            li $a0, 67      # $a0 = time (in milliseconds) to sleep
+            li $a0, 60      # $a0 = time (in milliseconds) to sleep
             syscall         # sleep
             jr $ra
             
@@ -1924,6 +1999,23 @@ game_over:                              jal draw_inner_screen
                                         jal reset_screen
                                         jal draw_game_over
                                         
-                                        j exit
+wait_for_retry_or_exit:                 lw $t0, ADDR_KBRD                           # $t0 = base address for keyboard
+                                        lw $t8, 0($t0)                              # Load first word from keyboard
+                                        bne $t8, 1, wait_for_retry_or_exit          # If first word is not 1, key is not pressed, so exit
+            
+                                        lw $a0, 4($t0)                              # Load second word from keyboard
+                                        beq $a0, 0x72, reset_game
+                                        beq $a0, 0x71, exit
                                         
-game_over_end:                          jr $ra
+                                        j wait_for_retry_or_exit
+                                        
+reset_game:                             jal reset_screen
+
+                                        lw $t0, SCORE
+                                        lw $t1, HIGH_SCORE
+                                        
+                                        blt $t0, $t1, skip_update_high_score        # if score < high score, then skip
+                                        sw $t0, HIGH_SCORE                          # save new high score
+                                        
+skip_update_high_score:                 j main
+                                        
