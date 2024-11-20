@@ -35,7 +35,7 @@
             \item Increase gravity speed (2)
             \item Game over and retry (4)
             \item Preview next capsule (11)
-            \item Dr. Mario and viruses (13)
+            \item Display highest score so far (10)
             \item Make viruses disappear (14)
         \end{itemize}
 
@@ -56,20 +56,92 @@
 
     \end{enumerate}
 
+    \item Data:
     
+    \begin{verbatim}
+# Memory address for display
+ADDR_DSPL:              .word 0x10008000        
 
-\begin{figure}[ht!]
-    \centering
-    \includegraphics[width=0.3\textwidth]{name.png}
-    \caption{caption}
-    \label{Instructions}
-\end{figure}
+# Array in memory that has a copy of the pixels inside the bottle
+INNER_BOTTLE:           .word 0:408             
+
+# 2 element array storing the 2 addresses where the capsule should be drawn
+CAPSULE:                .word 0x100081ac:2      
+
+# 2 element array storing the 2 colors for the current capsule in play
+COLOR_CAPSULE:          .space 8                
+
+# Stores the memory address where the preview of the next capsule is drawn
+NEXT_CAPSULE:           .word 0x100081e4        
+
+# Stores the 2 colors of the next capsule
+NEXT_CAPSULE_COLOR:     .space 8                
+
+# Stores the memory address of the keyboard input
+ADDR_KBRD:              .word 0xffff0000        
+
+# Initial memory address where to draw a new capsule
+CENTR_BTTL:             .word 0x10008124
+
+# Stores the memory address where the top left of the bottle is
+TOP_LEFT_BOTTLE:        .word 0x10008304
+
+# Red color
+RED:                    .word 0x00ff0000
+
+# Yellow color
+YELLOW:                 .word 0x00ffff00
+
+# Blue color
+BLUE:                   .word 0x000000ff
+
+# Color for red virus
+LIGHT_PINK:             .word 0x00ff80a0
+
+# Color for yellow virus
+ORANGE:                 .word 0x00ff9000
+
+# Color for blue virus
+LIGHT_BLUE:             .word 0x008888ff
+
+# Memory address where to draw score
+SCORE_POSITION:         .word 0x10008cd0
+
+# Stores the current score
+SCORE:                  .word 0x0
+
+# Stores the number of times the game loop has run to control falling speed
+GAME_LOOP_COUNT:        .word 0x0
+
+# Memory address where to draw Dr Mario image
+DR_MARIO_POSITION:  .word 0x10008350
+
+# Memory address where to draw red virus (under Dr Mario)
+RED_VIRUS_POSITION:     .word 0x100087dc
+
+# Memory address where to draw yellow virus (under Dr Mario)
+YELLOW_VIRUS_POSITION:  .word 0x10008864
+
+# Memory address where to draw blue virus (under Dr Mario)
+BLUE_VIRUS_POSITION:    .word 0x100087ec
+
+# Number of game loops to wait before move capsule down
+FALLING_SPEED:          .word 0xf
+
+# Memory address where to draw high score
+HIGH_SCORE_POSITION:    .word 0x10008950
+
+# Stores the current high score
+HIGH_SCORE:             .word 0x0
+    \end{verbatim}
 
 \item Game Summary:
 % TODO: Tell us a little about your game.
 \begin{itemize}
-\item
-\item
+\item   Cool game that you can play with w, a, s, and d keys
+\item   You can exit anytime with the q key
+\item   When game is over, the r key can be pressed to start a new game
+\item   WARNING: Game can be quite addictive
 \end{itemize}
 
     
